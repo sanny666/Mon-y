@@ -76,10 +76,16 @@ struct BudgetService {
 
     /// Updates `notifiedAt80` / `notifiedAt100`, fires local notifications once per threshold.
     /// Returns `true` if flags changed.
+    ///
+    /// Flag reset when `spendRatio < 0.8` is an intentional compromise (not a dedicated
+    /// period boundary): deleting/editing txs mid-month can clear flags and allow a second
+    /// notify if spend climbs back over 80%. False positive is preferred over missing a
+    /// new-period alert. True period edge is the calendar month in `recalculateSpent`.
     func evaluateThresholds(for budget: Budget) -> Bool {
         let ratio = budget.spendRatio
         var changed = false
 
+        // Intentionally ratio-based (not periodKey): mid-period spend drops also reset flags.
         if ratio < 0.8 {
             if budget.notifiedAt80 || budget.notifiedAt100 {
                 budget.notifiedAt80 = false

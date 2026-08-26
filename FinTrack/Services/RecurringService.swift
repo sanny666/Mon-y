@@ -5,6 +5,11 @@ struct RecurringService {
 
     /// Creates at most one transaction per due template, then advances `nextDate`
     /// past any missed periods (no catch-up duplicates).
+    ///
+    /// Materialization is foreground-only (call sites: app launch / scene active /
+    /// periodic maintenance while the process is alive). Day-before reminders still fire
+    /// via `UNNotificationRequest` without the app open; the real transaction appears on
+    /// the next open. There is no server push path.
     func processDue(
         items: [RecurringTransaction],
         now: Date = .now,

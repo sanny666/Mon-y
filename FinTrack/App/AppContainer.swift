@@ -55,6 +55,8 @@ final class AppContainer {
     }
 
 
+    /// Materializes due recurring templates. Safe in both `.local` and `.synced`
+    /// (does not depend on SyncEngine). Reminder scheduling is separate from tx creation.
     func processDueRecurring() {
         do {
             let items = try recurring.fetchAll()
@@ -98,9 +100,12 @@ final class AppContainer {
     }
 
     func handleSceneBecameActive() {
+        // Recurring first — always, including `.local` without login.
         processDueRecurring()
     }
 
+    /// Recurring due-check loop. Runs in both `.local` and `.synced` (independent of
+    /// `startPeriodicSync`, which is synced-only).
     private func startPeriodicMaintenance() {
         periodicMaintenanceTask?.cancel()
         periodicMaintenanceTask = Task { [weak self] in
