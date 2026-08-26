@@ -7,6 +7,8 @@ final class Budget {
     var limitAmount: Double
     var periodRaw: String
     var currentSpent: Double
+    var notifiedAt80: Bool = false
+    var notifiedAt100: Bool = false
     var updatedAt: Date = Date.now
     var isSynced: Bool = false
     var isDeleted: Bool = false
@@ -19,9 +21,14 @@ final class Budget {
         set { periodRaw = newValue.rawValue }
     }
 
-    var progress: Double {
+    /// Uncapped ratio for threshold checks and progress tint.
+    var spendRatio: Double {
         guard limitAmount > 0 else { return 0 }
-        return min(currentSpent / limitAmount, 1)
+        return currentSpent / limitAmount
+    }
+
+    var progress: Double {
+        min(spendRatio, 1)
     }
 
     init(
@@ -30,6 +37,8 @@ final class Budget {
         limitAmount: Double,
         period: BudgetPeriod = .monthly,
         currentSpent: Double = 0,
+        notifiedAt80: Bool = false,
+        notifiedAt100: Bool = false,
         updatedAt: Date = .now,
         isSynced: Bool = false,
         isDeleted: Bool = false,
@@ -40,6 +49,8 @@ final class Budget {
         self.limitAmount = limitAmount
         self.periodRaw = period.rawValue
         self.currentSpent = currentSpent
+        self.notifiedAt80 = notifiedAt80
+        self.notifiedAt100 = notifiedAt100
         self.updatedAt = updatedAt
         self.isSynced = isSynced
         self.isDeleted = isDeleted

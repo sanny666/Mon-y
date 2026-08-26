@@ -287,6 +287,8 @@ UUID в JSON — **string**. Связи — `*Id` поля, не вложенн�
   "period": "monthly",
   "currentSpent": 12000.0,
   "categoryId": "uuid",
+  "notifiedAt80": false,
+  "notifiedAt100": false,
   "updatedAt": "2026-08-26T07:41:00.000Z",
   "isDeleted": false
 }
@@ -299,6 +301,8 @@ UUID в JSON — **string**. Связи — `*Id` поля, не вложенн�
 | `period` | BudgetPeriod | да | |
 | `currentSpent` | number | да | **клиент пересчитывает** после pull; сервер хранит как есть |
 | `categoryId` | string (UUID) \| null | нет | |
+| `notifiedAt80` | boolean | да | клиент: одно уведомление на 80% за период; сброс в новом периоде |
+| `notifiedAt100` | boolean | да | клиент: одно уведомление на 100%+ за период; сброс в новом периоде |
 | `updatedAt` | string (ISO8601) | да | |
 | `isDeleted` | boolean | да | |
 

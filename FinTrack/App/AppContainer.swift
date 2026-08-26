@@ -38,7 +38,11 @@ final class AppContainer {
         do {
             let allBudgets = try budgets.fetchAll()
             let allTransactions = try transactions.fetchAll()
-            budgetService.recalculateAll(budgets: allBudgets, transactions: allTransactions)
+            let dirtyBudgets = budgetService.recalculateAll(budgets: allBudgets, transactions: allTransactions)
+            for budget in dirtyBudgets {
+                budget.updatedAt = .now
+                budget.isSynced = false
+            }
             try context.save()
             notifyChange()
         } catch {

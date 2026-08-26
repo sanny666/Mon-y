@@ -31,7 +31,7 @@ struct BudgetsView: View {
                                     .foregroundStyle(.secondary)
                             }
                             ProgressView(value: budget.progress)
-                                .tint(budget.progress >= 1 ? .red : .accentColor)
+                                .tint(progressTint(for: budget.spendRatio))
                         }
                         .padding(.vertical, 4)
                     }
@@ -57,6 +57,12 @@ struct BudgetsView: View {
         .onChange(of: showAdd) { _, isPresented in
             if !isPresented { viewModel.reload(container: container) }
         }
+    }
+
+    private func progressTint(for ratio: Double) -> Color {
+        if ratio >= 1 { return .red }
+        if ratio >= 0.8 { return .orange }
+        return .accentColor
     }
 }
 
@@ -120,6 +126,9 @@ struct BudgetEditorView: View {
         do {
             let budget = Budget(category: category, limitAmount: limit)
             try container.budgets.save(budget)
+            Task {
+                await NotificationService.shared.requestAuthorizationIfNeeded()
+            }
             container.recalculateBudgets()
             container.notifyChange()
             dismiss()
