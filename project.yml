@@ -1,0 +1,48 @@
+name: FinTrack
+options:
+  bundleIdPrefix: com.sany
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "15.0"
+  createIntermediateGroups: true
+settings:
+  SWIFT_VERSION: "5.9"
+  TARGETED_DEVICE_FAMILY: "1,2"
+  SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+  SUPPORTS_MACCATALYST: NO
+schemes:
+  FinTrack:
+    build:
+      targets:
+        FinTrack: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+targets:
+  FinTrack:
+    type: application
+    platform: iOS
+    sources:
+      - path: FinTrack
+        excludes:
+          - "**/.DS_Store"
+          # actool ломается: Xcode 26.6 SDK (23F81a) vs iOS 27 beta runtime (24A5390f).
+          # Accent задан в коде (.tint). Файлы каталога оставлены в репо для будущего.
+          - "Resources/Assets.xcassets"
+          - "Resources/Assets.xcassets/**"
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.sany.fintrack
+      PRODUCT_NAME: FinTrack
+      GENERATE_INFOPLIST_FILE: YES
+      INFOPLIST_KEY_CFBundleDisplayName: FinTrack
+      INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+      INFOPLIST_KEY_UILaunchScreen_Generation: YES
+      INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+      INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+      INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "FinTrack использует фото для вложений к транзакциям (чеки)."
+      SWIFT_STRICT_CONCURRENCY: targeted
+      IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+      TARGETED_DEVICE_FAMILY: "1,2"
+      SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+      SUPPORTS_MACCATALYST: NO
