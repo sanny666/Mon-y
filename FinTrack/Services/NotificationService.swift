@@ -1,7 +1,6 @@
 import Foundation
 import UserNotifications
 
-@MainActor
 final class NotificationService {
     static let shared = NotificationService()
 
@@ -51,7 +50,6 @@ final class NotificationService {
         components.hour = 9
         components.minute = 0
 
-        // Skip if reminder time already passed
         if let fireDate = Calendar.current.date(from: components), fireDate <= Date.now {
             return
         }

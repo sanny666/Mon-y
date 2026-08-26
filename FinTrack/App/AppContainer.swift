@@ -13,9 +13,11 @@ final class AppContainer {
     let balanceService: BalanceService
     let budgetService: BudgetService
     let analyticsService: AnalyticsService
+    let recurringService: RecurringService
 
     private let context: ModelContext
     var refreshToken: Int = 0
+    private var periodicMaintenanceTask: Task<Void, Never>?
 
     init(context: ModelContext) {
         self.context = context
@@ -28,6 +30,8 @@ final class AppContainer {
         self.balanceService = BalanceService()
         self.budgetService = BudgetService()
         self.analyticsService = AnalyticsService()
+        self.recurringService = RecurringService()
+        startPeriodicMaintenance()
     }
 
     func notifyChange() {
@@ -47,6 +51,65 @@ final class AppContainer {
             notifyChange()
         } catch {
             // Keep UI responsive; errors surface via empty data.
+        }
+    }
+
+
+    func processDueRecurring() {
+        do {
+            let items = try recurring.fetchAll()
+            let created = try recurringService.processDue(
+                items: items,
+                createTransaction: { item, date in
+                    let tx = Transaction(
+                        amount: item.amount,
+                        type: item.type,
+                        date: date,
+                        note: item.note,
+                        account: item.account,
+                        category: item.category
+                    )
+                    try self.transactions.save(tx)
+                },
+                saveItem: { item in
+                    try self.recurring.save(item)
+                    self.rescheduleRecurringReminder(for: item)
+                }
+            )
+            if created > 0 {
+                recalculateBudgets()
+                notifyChange()
+            }
+        } catch {
+            // Keep UI responsive; errors surface via missing data.
+        }
+    }
+
+    func rescheduleRecurringReminder(for item: RecurringTransaction) {
+        let title = item.note.isEmpty ? item.type.title : item.note
+        let currency = item.account?.currency ?? AppCurrency.kzt.rawValue
+        let amountText = CurrencyFormatter.string(amount: item.amount, currencyCode: currency)
+        NotificationService.shared.scheduleRecurringReminder(
+            id: item.id,
+            title: title,
+            amountText: amountText,
+            nextDate: item.nextDate
+        )
+    }
+
+    func handleSceneBecameActive() {
+        processDueRecurring()
+    }
+
+    private func startPeriodicMaintenance() {
+        periodicMaintenanceTask?.cancel()
+        periodicMaintenanceTask = Task { [weak self] in
+            while !Task.isCancelled {
+                let ns = UInt64(5 * 60 * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: ns)
+                guard !Task.isCancelled else { return }
+                self?.processDueRecurring()
+            }
         }
     }
 

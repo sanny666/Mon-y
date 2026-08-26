@@ -281,6 +281,7 @@ final class RecurringViewModel {
 
     func delete(_ item: RecurringTransaction, container: AppContainer) {
         do {
+            NotificationService.shared.cancelRecurringReminder(id: item.id)
             try container.recurring.delete(item)
             reload(container: container)
             container.notifyChange()

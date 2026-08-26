@@ -63,7 +63,6 @@ struct BudgetService {
 
     /// Recalculates spent and evaluates 80%/100% notification thresholds.
     /// Returns budgets whose notification flags changed (need dirty sync markers).
-    @MainActor
     func recalculateAll(budgets: [Budget], transactions: [Transaction]) -> [Budget] {
         var dirty: [Budget] = []
         for budget in budgets {
@@ -77,7 +76,6 @@ struct BudgetService {
 
     /// Updates `notifiedAt80` / `notifiedAt100`, fires local notifications once per threshold.
     /// Returns `true` if flags changed.
-    @MainActor
     func evaluateThresholds(for budget: Budget) -> Bool {
         let ratio = budget.spendRatio
         var changed = false

@@ -32,6 +32,7 @@ struct FinTrackApp: App {
 
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(AppStorageKeys.hasCompletedOnboarding) private var hasCompletedOnboarding = false
     @AppStorage(AppStorageKeys.appTheme) private var appThemeRaw = AppTheme.system.rawValue
     @State private var appContainer: AppContainer?
@@ -61,11 +62,17 @@ struct RootView: View {
                     .onAppear {
                         let container = AppContainer(context: modelContext)
                         container.seedDefaultCategoriesIfNeeded()
+                        container.processDueRecurring()
                         appContainer = container
                     }
             }
         }
         .preferredColorScheme(preferredScheme)
         .tint(Color(hex: "#268F6B"))
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                appContainer?.handleSceneBecameActive()
+            }
+        }
     }
 }

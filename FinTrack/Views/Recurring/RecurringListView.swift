@@ -5,6 +5,7 @@ struct RecurringListView: View {
     @AppStorage(AppStorageKeys.defaultCurrency) private var defaultCurrency = AppCurrency.kzt.rawValue
     @State private var viewModel = RecurringViewModel()
     @State private var showAdd = false
+    @State private var editingItem: RecurringTransaction?
 
     var body: some View {
         Group {
@@ -19,24 +20,30 @@ struct RecurringListView: View {
             } else {
                 List {
                     ForEach(viewModel.items, id: \.id) { item in
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text(item.note.isEmpty ? item.type.title : item.note)
-                                    .font(.headline)
-                                Spacer()
-                                Text(CurrencyFormatter.string(amount: item.amount, currencyCode: item.account?.currency ?? defaultCurrency))
-                                    .fontWeight(.semibold)
-                            }
-                            Text("\(item.frequency.title) · следующий \(item.nextDate.formatted(date: .abbreviated, time: .omitted))")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if let account = item.account {
-                                Text(account.name)
-                                    .font(.caption2)
+                        Button {
+                            editingItem = item
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(item.note.isEmpty ? item.type.title : item.note)
+                                        .font(.headline)
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    Text(CurrencyFormatter.string(amount: item.amount, currencyCode: item.account?.currency ?? defaultCurrency))
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.primary)
+                                }
+                                Text("\(item.frequency.title) · следующий \(item.nextDate.formatted(date: .abbreviated, time: .omitted))")
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
+                                if let account = item.account {
+                                    Text(account.name)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
+                            .padding(.vertical, 2)
                         }
-                        .padding(.vertical, 2)
                     }
                     .onDelete { indexSet in
                         for index in indexSet {
@@ -55,7 +62,18 @@ struct RecurringListView: View {
         .sheet(isPresented: $showAdd) {
             NavigationStack { RecurringEditorView() }
         }
-        .onAppear { viewModel.reload(container: container) }
+        .sheet(isPresented: Binding(
+            get: { editingItem != nil },
+            set: { if !$0 { editingItem = nil; viewModel.reload(container: container) } }
+        )) {
+            if let editingItem {
+                NavigationStack { RecurringEditorView(existing: editingItem) }
+            }
+        }
+        .onAppear {
+            viewModel.reload(container: container)
+            container.processDueRecurring()
+        }
         .onChange(of: container.refreshToken) { _, _ in viewModel.reload(container: container) }
         .onChange(of: showAdd) { _, isPresented in
             if !isPresented { viewModel.reload(container: container) }
@@ -66,6 +84,8 @@ struct RecurringListView: View {
 struct RecurringEditorView: View {
     @Environment(AppContainer.self) private var container
     @Environment(\.dismiss) private var dismiss
+
+    var existing: RecurringTransaction?
 
     @State private var amountText = ""
     @State private var type: TransactionType = .expense
@@ -97,6 +117,7 @@ struct RecurringEditorView: View {
     var body: some View {
         Form {
             Section {
+                TextField("Название", text: $note)
                 TextField("Сумма", text: $amountText)
                     .keyboardType(.decimalPad)
                 Picker("Тип", selection: $type) {
@@ -108,7 +129,6 @@ struct RecurringEditorView: View {
                     selectedRootCategoryID = filteredRoots.first?.id
                     selectedSubcategoryID = nil
                 }
-                TextField("Заметка", text: $note)
                 Picker("Частота", selection: $frequency) {
                     ForEach(RecurringFrequency.allCases) { item in
                         Text(item.title).tag(item)
@@ -142,7 +162,7 @@ struct RecurringEditorView: View {
                 }
             }
         }
-        .navigationTitle("Новый платёж")
+        .navigationTitle(existing == nil ? "Новый платёж" : "Платёж")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -153,16 +173,7 @@ struct RecurringEditorView: View {
                     .disabled(selectedAccountID == nil || (Double(amountText.replacingOccurrences(of: ",", with: ".")) ?? 0) <= 0)
             }
         }
-        .onAppear {
-            do {
-                accounts = try container.accounts.fetchAll()
-                rootCategories = try container.categories.fetchRoots()
-                selectedAccountID = accounts.first?.id
-                selectedRootCategoryID = filteredRoots.first?.id
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-        }
+        .onAppear { load() }
         .alert("Ошибка", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -170,6 +181,37 @@ struct RecurringEditorView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "")
+        }
+    }
+
+    private func load() {
+        do {
+            accounts = try container.accounts.fetchAll()
+            rootCategories = try container.categories.fetchRoots()
+            if let existing {
+                amountText = String(existing.amount)
+                type = existing.type
+                note = existing.note
+                frequency = existing.frequency
+                nextDate = existing.nextDate
+                selectedAccountID = existing.account?.id ?? accounts.first?.id
+                if let category = existing.category {
+                    if let parent = category.parent {
+                        selectedRootCategoryID = parent.id
+                        selectedSubcategoryID = category.id
+                    } else {
+                        selectedRootCategoryID = category.id
+                        selectedSubcategoryID = nil
+                    }
+                } else {
+                    selectedRootCategoryID = filteredRoots.first?.id
+                }
+            } else {
+                selectedAccountID = accounts.first?.id
+                selectedRootCategoryID = filteredRoots.first?.id
+            }
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -186,16 +228,33 @@ struct RecurringEditorView: View {
         guard let accountID = selectedAccountID,
               let account = accounts.first(where: { $0.id == accountID }) else { return }
         do {
-            let item = RecurringTransaction(
-                amount: amount,
-                type: type,
-                note: note,
-                frequency: frequency,
-                nextDate: nextDate,
-                account: account,
-                category: resolvedCategory()
-            )
+            let item: RecurringTransaction
+            if let existing {
+                existing.amount = amount
+                existing.type = type
+                existing.note = note
+                existing.frequency = frequency
+                existing.nextDate = nextDate
+                existing.account = account
+                existing.category = resolvedCategory()
+                item = existing
+            } else {
+                item = RecurringTransaction(
+                    amount: amount,
+                    type: type,
+                    note: note,
+                    frequency: frequency,
+                    nextDate: nextDate,
+                    account: account,
+                    category: resolvedCategory()
+                )
+            }
             try container.recurring.save(item)
+            Task {
+                await NotificationService.shared.requestAuthorizationIfNeeded()
+            }
+            container.rescheduleRecurringReminder(for: item)
+            container.processDueRecurring()
             container.notifyChange()
             dismiss()
         } catch {

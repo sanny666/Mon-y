@@ -16,6 +16,7 @@
 		2B35F4D1A423F693193278C3 /* Enums.swift in Sources */ = {isa = PBXBuildFile; fileRef = 875545E5D056BF6E6194684F /* Enums.swift */; };
 		339FA7D895203097EEF576EB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6B399EA26973B0F4A8B640 /* SettingsView.swift */; };
 		36BC5A76E446C1D63A814BCA /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59F04F2C86DDAF6128F6FA0C /* AppContainer.swift */; };
+		3867904184E74517F00DD99A /* RecurringService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E3C00909642416659814589 /* RecurringService.swift */; };
 		3C02D93FA68318B44E2BC187 /* RecurringListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F79732BD6FC3FD84D3DEB7E /* RecurringListView.swift */; };
 		3E7FC6B673D006590EB2D067 /* ViewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9AA143D12DFBD1B77F705FF /* ViewModels.swift */; };
 		4E799AAC5FE4E53DE66E999A /* Category.swift in Sources */ = {isa = PBXBuildFile; fileRef = F053C63C61980B18AA6263E4 /* Category.swift */; };
@@ -58,6 +59,7 @@
 		2B60608DB1E57B511C815292 /* RepositoryProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryProtocols.swift; sourceTree = "<group>"; };
 		2FB73684BE58709BA98D84D2 /* RecurringTransaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurringTransaction.swift; sourceTree = "<group>"; };
 		32BBF0F15EC7911B6990AA5B /* SharedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedComponents.swift; sourceTree = "<group>"; };
+		3E3C00909642416659814589 /* RecurringService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurringService.swift; sourceTree = "<group>"; };
 		4A4120F91B7CFBB729BEEE9B /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		4B5B068281F079F2EE9D6B94 /* Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Helpers.swift; sourceTree = "<group>"; };
 		59F04F2C86DDAF6128F6FA0C /* AppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContainer.swift; sourceTree = "<group>"; };
@@ -80,7 +82,6 @@
 		E9377DD512C9AB67B800A910 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		F053C63C61980B18AA6263E4 /* Category.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Category.swift; sourceTree = "<group>"; };
 		F1829FFD6EB0076039DC19BA /* Transaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transaction.swift; sourceTree = "<group>"; };
-		F262FBA26B15D2C4597BBD7C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F6159353C972D086C92A5FED /* NetworkError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkError.swift; sourceTree = "<group>"; };
 		FA6B399EA26973B0F4A8B640 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		FEFFE1612A4E98B2561DD3FA /* GoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsView.swift; sourceTree = "<group>"; };
@@ -189,6 +190,7 @@
 				01D86A2A68D69AC9EB61935D /* BalanceService.swift */,
 				4B5B068281F079F2EE9D6B94 /* Helpers.swift */,
 				7DA364FF2EBDEB63DFFABA5C /* NotificationService.swift */,
+				3E3C00909642416659814589 /* RecurringService.swift */,
 				A4E07DCE6D96595CD2862E3D /* SeedDataService.swift */,
 			);
 			path = Services;
@@ -223,7 +225,6 @@
 		981F1E41C2EB8703A6E1F6A0 /* FinTrack */ = {
 			isa = PBXGroup;
 			children = (
-				F262FBA26B15D2C4597BBD7C /* Info.plist */,
 				8387904687DEFC6524A7FB0A /* App */,
 				A96289E687731417561F7EB0 /* Models */,
 				3F6DD41F738230E3E3308144 /* Network */,
@@ -387,6 +388,7 @@
 				C3D6299F341B4592CE767E12 /* NotificationService.swift in Sources */,
 				C4FA46A05F3F14DF41416340 /* OnboardingView.swift in Sources */,
 				3C02D93FA68318B44E2BC187 /* RecurringListView.swift in Sources */,
+				3867904184E74517F00DD99A /* RecurringService.swift in Sources */,
 				6E037B33C990E82581CD6827 /* RecurringTransaction.swift in Sources */,
 				7142E8FAD3A9E8037D3CA51A /* RepositoryProtocols.swift in Sources */,
 				6873ACC706D7DC61AD0353F4 /* SeedDataService.swift in Sources */,
@@ -410,7 +412,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = FinTrack/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FinTrack;
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "FinTrack использует фото для вложений к транзакциям (чеки).";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -436,7 +439,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = FinTrack/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FinTrack;
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "FinTrack использует фото для вложений к транзакциям (чеки).";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -460,7 +464,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				API_BASE_URL = "http://localhost:3020";
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -527,7 +530,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				API_BASE_URL = "http://localhost:3020";
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
