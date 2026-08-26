@@ -41,7 +41,7 @@ struct OnboardingView: View {
                 .disabled(step == 1 && accountName.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             .padding(24)
-            .navigationTitle("FinTrack")
+            .navigationTitle("Monëy")
             .alert("Ошибка", isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }

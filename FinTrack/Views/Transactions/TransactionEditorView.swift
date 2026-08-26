@@ -304,6 +304,13 @@ struct TransactionEditorView: View {
                         selectedSubcategoryID = nil
                     }
                 }
+                let remoteURL = transaction.attachmentURL
+                Task {
+                    if attachmentPreview == nil,
+                       let image = await container.loadAttachmentImage(urlString: remoteURL) {
+                        attachmentPreview = image
+                    }
+                }
             } else {
                 selectedAccountID = accounts.first?.id
                 selectedRootCategoryID = filteredRoots.first?.id

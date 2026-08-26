@@ -1,59 +1,85 @@
 import Foundation
 import Observation
 import SwiftData
+import UIKit
+
+enum DataMode: String {
+    case local
+    case synced
+}
 
 @Observable
+@MainActor
 final class AppContainer {
-    let accounts: AccountRepository
-    let categories: CategoryRepository
-    let transactions: TransactionRepository
-    let budgets: BudgetRepository
-    let goals: GoalRepository
-    let recurring: RecurringTransactionRepository
+    private(set) var accounts: AccountRepository
+    private(set) var categories: CategoryRepository
+    private(set) var transactions: TransactionRepository
+    private(set) var budgets: BudgetRepository
+    private(set) var goals: GoalRepository
+    private(set) var recurring: RecurringTransactionRepository
     let balanceService: BalanceService
     let budgetService: BudgetService
     let analyticsService: AnalyticsService
     let recurringService: RecurringService
 
+    let authManager: AuthManager
+    private let apiClient: APIClient
+    private(set) var syncEngine: SyncEngine?
+    private(set) var dataMode: DataMode = .local
+    private(set) var syncStatus: SyncStatus = .idle
+    /// Set when refresh fails — UI should offer login again.
+    var needsReauthentication = false
+    var authBannerMessage: String?
+
     private let context: ModelContext
     var refreshToken: Int = 0
+
+    private var periodicSyncTask: Task<Void, Never>?
+    private var debounceSyncTask: Task<Void, Never>?
     private var periodicMaintenanceTask: Task<Void, Never>?
 
     init(context: ModelContext) {
         self.context = context
+        self.balanceService = BalanceService()
+        self.budgetService = BudgetService()
+        self.analyticsService = AnalyticsService()
+        self.recurringService = RecurringService()
+        self.authManager = AuthManager()
+
+        // Temporary local wiring; may switch to synced below.
         self.accounts = SwiftDataAccountRepository(context: context)
         self.categories = SwiftDataCategoryRepository(context: context)
         self.transactions = SwiftDataTransactionRepository(context: context)
         self.budgets = SwiftDataBudgetRepository(context: context)
         self.goals = SwiftDataGoalRepository(context: context)
         self.recurring = SwiftDataRecurringTransactionRepository(context: context)
-        self.balanceService = BalanceService()
-        self.budgetService = BudgetService()
-        self.analyticsService = AnalyticsService()
-        self.recurringService = RecurringService()
+
+        let auth = self.authManager
+        self.apiClient = APIClient(
+            accessTokenProvider: { auth.accessToken },
+            refreshHandler: { try await auth.refreshToken() },
+            onAuthFailure: { await auth.handleAuthFailure() }
+        )
+
+        authManager.onSessionExpired = { [weak self] in
+            Task { @MainActor in
+                self?.disableSyncedMode()
+                self?.needsReauthentication = true
+                self?.authBannerMessage = "Сессия истекла. Войдите снова для синхронизации."
+                self?.syncStatus = .error("Сессия истекла")
+                self?.notifyChange()
+            }
+        }
+
+        if authManager.isLoggedIn {
+            enableSyncedMode()
+        }
         startPeriodicMaintenance()
     }
 
     func notifyChange() {
         refreshToken += 1
     }
-
-    func recalculateBudgets() {
-        do {
-            let allBudgets = try budgets.fetchAll()
-            let allTransactions = try transactions.fetchAll()
-            let dirtyBudgets = budgetService.recalculateAll(budgets: allBudgets, transactions: allTransactions)
-            for budget in dirtyBudgets {
-                budget.updatedAt = .now
-                budget.isSynced = false
-            }
-            try context.save()
-            notifyChange()
-        } catch {
-            // Keep UI responsive; errors surface via empty data.
-        }
-    }
-
 
     /// Materializes due recurring templates. Safe in both `.local` and `.synced`
     /// (does not depend on SyncEngine). Reminder scheduling is separate from tx creation.
@@ -99,9 +125,127 @@ final class AppContainer {
         )
     }
 
+    func recalculateBudgets() {
+        do {
+            let allBudgets = try budgets.fetchAll()
+            let allTransactions = try transactions.fetchAll()
+            let dirtyBudgets = budgetService.recalculateAll(budgets: allBudgets, transactions: allTransactions)
+            for budget in dirtyBudgets {
+                budget.updatedAt = .now
+                budget.isSynced = false
+            }
+            try context.save()
+            if !dirtyBudgets.isEmpty, dataMode == .synced {
+                scheduleSyncDebounced()
+            }
+            notifyChange()
+        } catch {
+            // Keep UI responsive; errors surface via empty data.
+        }
+    }
+
+    // MARK: - Mode switching
+
+    func enableSyncedMode() {
+        let schedule: () -> Void = { [weak self] in
+            self?.scheduleSyncDebounced()
+        }
+        accounts = NetworkAccountRepository(context: context, api: apiClient, scheduleSync: schedule)
+        categories = NetworkCategoryRepository(context: context, api: apiClient, scheduleSync: schedule)
+        transactions = NetworkTransactionRepository(context: context, api: apiClient, scheduleSync: schedule)
+        budgets = NetworkBudgetRepository(context: context, api: apiClient, scheduleSync: schedule)
+        goals = NetworkGoalRepository(context: context, api: apiClient, scheduleSync: schedule)
+        recurring = NetworkRecurringTransactionRepository(context: context, api: apiClient, scheduleSync: schedule)
+
+        let engine = SyncEngine(
+            context: context,
+            api: apiClient,
+            recalculateBudgets: { [weak self] in self?.recalculateBudgets() },
+            onDataChanged: { [weak self] in self?.notifyChange() }
+        )
+        syncEngine = engine
+        dataMode = .synced
+        startPeriodicSync()
+        startPeriodicMaintenance()
+        Task { await performSync() }
+    }
+
+    func disableSyncedMode() {
+        periodicSyncTask?.cancel()
+        periodicSyncTask = nil
+        debounceSyncTask?.cancel()
+        debounceSyncTask = nil
+        syncEngine = nil
+        syncStatus = .idle
+
+        accounts = SwiftDataAccountRepository(context: context)
+        categories = SwiftDataCategoryRepository(context: context)
+        transactions = SwiftDataTransactionRepository(context: context)
+        budgets = SwiftDataBudgetRepository(context: context)
+        goals = SwiftDataGoalRepository(context: context)
+        recurring = SwiftDataRecurringTransactionRepository(context: context)
+        dataMode = .local
+        startPeriodicMaintenance()
+        notifyChange()
+    }
+
+    func login(email: String, password: String) async throws {
+        try await authManager.login(email: email, password: password)
+        needsReauthentication = false
+        authBannerMessage = nil
+        enableSyncedMode()
+    }
+
+    func register(email: String, password: String, name: String?) async throws {
+        try await authManager.register(email: email, password: password, name: name)
+        needsReauthentication = false
+        authBannerMessage = nil
+        enableSyncedMode()
+    }
+
+    func logout() async {
+        await authManager.logout()
+        disableSyncedMode()
+    }
+
+    func performSync() async {
+        guard let syncEngine else { return }
+        await syncEngine.syncNow()
+        syncStatus = syncEngine.status
+        notifyChange()
+    }
+
+    func loadAttachmentImage(urlString: String?) async -> UIImage? {
+        await AttachmentImageCache.loadImage(urlString: urlString, api: apiClient)
+    }
+
     func handleSceneBecameActive() {
         // Recurring first — always, including `.local` without login.
         processDueRecurring()
+        guard dataMode == .synced else { return }
+        Task { await performSync() }
+    }
+
+    private func scheduleSyncDebounced() {
+        guard dataMode == .synced else { return }
+        debounceSyncTask?.cancel()
+        debounceSyncTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            guard !Task.isCancelled else { return }
+            await self?.performSync()
+        }
+    }
+
+    private func startPeriodicSync() {
+        periodicSyncTask?.cancel()
+        periodicSyncTask = Task { [weak self] in
+            while !Task.isCancelled {
+                let ns = UInt64(AppConfig.syncInterval * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: ns)
+                guard !Task.isCancelled else { return }
+                await self?.performSync()
+            }
+        }
     }
 
     /// Recurring due-check loop. Runs in both `.local` and `.synced` (independent of
@@ -110,13 +254,17 @@ final class AppContainer {
         periodicMaintenanceTask?.cancel()
         periodicMaintenanceTask = Task { [weak self] in
             while !Task.isCancelled {
-                let ns = UInt64(5 * 60 * 1_000_000_000)
+                let ns = UInt64(AppConfig.syncInterval * 1_000_000_000)
                 try? await Task.sleep(nanoseconds: ns)
                 guard !Task.isCancelled else { return }
-                self?.processDueRecurring()
+                await MainActor.run {
+                    self?.processDueRecurring()
+                }
             }
         }
     }
+
+    // MARK: - Seed
 
     func seedDefaultCategoriesIfNeeded() {
         do {
@@ -135,7 +283,6 @@ final class AppContainer {
         }
     }
 
-    /// One-time upgrade: attach default subcategories to existing root categories by name.
     private func seedSubcategoriesIfNeeded() {
         let defaults = UserDefaults.standard
         guard !defaults.bool(forKey: AppStorageKeys.hasSeededSubcategories) else { return }

@@ -1,210 +1,156 @@
 import Foundation
+import SwiftData
 
-/// Network repository stubs implementing the same protocols as SwiftData*.
-/// Not wired into AppContainer — see docs/API_CONTRACT.md §5.
-/// Each method throws until HTTP is implemented.
-
-// MARK: - Account
+/// Offline-first repositories: write SwiftData immediately (`isSynced = false`),
+/// then schedule SyncEngine. `isSynced = true` is set only after confirmed server accept.
 
 final class NetworkAccountRepository: AccountRepository {
-    func fetchAll() throws -> [Account] {
-        // TODO: GET /v1/accounts
-        throw NetworkError.unimplemented(endpoint: "GET /v1/accounts")
+    private let local: SwiftDataAccountRepository
+    private let scheduleSync: () -> Void
+
+    init(context: ModelContext, api: APIClient, scheduleSync: @escaping () -> Void) {
+        self.local = SwiftDataAccountRepository(context: context)
+        self.scheduleSync = scheduleSync
+        _ = api
     }
 
-    func fetch(id: UUID) throws -> Account? {
-        // TODO: GET /v1/accounts/:id
-        _ = id
-        throw NetworkError.unimplemented(endpoint: "GET /v1/accounts/:id")
-    }
+    func fetchAll() throws -> [Account] { try local.fetchAll() }
+    func fetch(id: UUID) throws -> Account? { try local.fetch(id: id) }
 
     func save(_ account: Account) throws {
-        // TODO: POST /v1/accounts (create) or PATCH /v1/accounts/:id (update)
-        _ = account
-        throw NetworkError.unimplemented(endpoint: "POST|PATCH /v1/accounts")
+        try local.save(account)
+        scheduleSync()
     }
 
     func delete(_ account: Account) throws {
-        // TODO: DELETE /v1/accounts/:id
-        _ = account
-        throw NetworkError.unimplemented(endpoint: "DELETE /v1/accounts/:id")
+        try local.delete(account)
+        scheduleSync()
     }
 }
 
-// MARK: - Category
-
 final class NetworkCategoryRepository: CategoryRepository {
-    func fetchAll() throws -> [Category] {
-        // TODO: GET /v1/categories
-        throw NetworkError.unimplemented(endpoint: "GET /v1/categories")
+    private let local: SwiftDataCategoryRepository
+    private let scheduleSync: () -> Void
+
+    init(context: ModelContext, api: APIClient, scheduleSync: @escaping () -> Void) {
+        self.local = SwiftDataCategoryRepository(context: context)
+        self.scheduleSync = scheduleSync
+        _ = api
     }
 
-    func fetch(id: UUID) throws -> Category? {
-        // TODO: GET /v1/categories/:id
-        _ = id
-        throw NetworkError.unimplemented(endpoint: "GET /v1/categories/:id")
-    }
-
-    func fetch(type: CategoryType) throws -> [Category] {
-        // TODO: GET /v1/categories?type=
-        _ = type
-        throw NetworkError.unimplemented(endpoint: "GET /v1/categories?type=")
-    }
-
-    func fetchRoots() throws -> [Category] {
-        // TODO: GET /v1/categories?rootsOnly=true
-        throw NetworkError.unimplemented(endpoint: "GET /v1/categories?rootsOnly=true")
-    }
-
-    func fetchRoots(type: CategoryType) throws -> [Category] {
-        // TODO: GET /v1/categories?rootsOnly=true&type=
-        _ = type
-        throw NetworkError.unimplemented(endpoint: "GET /v1/categories?rootsOnly=true&type=")
-    }
-
-    func fetchChildren(of parent: Category) throws -> [Category] {
-        // TODO: GET /v1/categories (filter by parentId client-side or dedicated query)
-        _ = parent
-        throw NetworkError.unimplemented(endpoint: "GET /v1/categories (children of parent)")
-    }
+    func fetchAll() throws -> [Category] { try local.fetchAll() }
+    func fetch(id: UUID) throws -> Category? { try local.fetch(id: id) }
+    func fetch(type: CategoryType) throws -> [Category] { try local.fetch(type: type) }
+    func fetchRoots() throws -> [Category] { try local.fetchRoots() }
+    func fetchRoots(type: CategoryType) throws -> [Category] { try local.fetchRoots(type: type) }
+    func fetchChildren(of parent: Category) throws -> [Category] { try local.fetchChildren(of: parent) }
 
     func save(_ category: Category) throws {
-        // TODO: POST /v1/categories or PATCH /v1/categories/:id
-        _ = category
-        throw NetworkError.unimplemented(endpoint: "POST|PATCH /v1/categories")
+        try local.save(category)
+        scheduleSync()
     }
 
     func delete(_ category: Category) throws {
-        // TODO: DELETE /v1/categories/:id
-        _ = category
-        throw NetworkError.unimplemented(endpoint: "DELETE /v1/categories/:id")
+        try local.delete(category)
+        scheduleSync()
     }
 }
 
-// MARK: - Transaction
-
 final class NetworkTransactionRepository: TransactionRepository {
-    func fetchAll() throws -> [Transaction] {
-        // TODO: GET /v1/transactions
-        throw NetworkError.unimplemented(endpoint: "GET /v1/transactions")
+    private let local: SwiftDataTransactionRepository
+    private let scheduleSync: () -> Void
+
+    init(context: ModelContext, api: APIClient, scheduleSync: @escaping () -> Void) {
+        self.local = SwiftDataTransactionRepository(context: context)
+        self.scheduleSync = scheduleSync
+        _ = api
     }
 
-    func fetch(id: UUID) throws -> Transaction? {
-        // TODO: GET /v1/transactions/:id
-        _ = id
-        throw NetworkError.unimplemented(endpoint: "GET /v1/transactions/:id")
-    }
-
-    func fetchRecent(limit: Int) throws -> [Transaction] {
-        // TODO: GET /v1/transactions?limit=
-        _ = limit
-        throw NetworkError.unimplemented(endpoint: "GET /v1/transactions?limit=")
-    }
-
-    func fetch(accountID: UUID) throws -> [Transaction] {
-        // TODO: GET /v1/transactions?accountId=
-        _ = accountID
-        throw NetworkError.unimplemented(endpoint: "GET /v1/transactions?accountId=")
-    }
-
-    func fetch(filter: TransactionFilter) throws -> [Transaction] {
-        // TODO: GET /v1/transactions with accountId/categoryId/startDate/endDate query
-        _ = filter
-        throw NetworkError.unimplemented(endpoint: "GET /v1/transactions (filter)")
-    }
+    func fetchAll() throws -> [Transaction] { try local.fetchAll() }
+    func fetch(id: UUID) throws -> Transaction? { try local.fetch(id: id) }
+    func fetchRecent(limit: Int) throws -> [Transaction] { try local.fetchRecent(limit: limit) }
+    func fetch(accountID: UUID) throws -> [Transaction] { try local.fetch(accountID: accountID) }
+    func fetch(filter: TransactionFilter) throws -> [Transaction] { try local.fetch(filter: filter) }
 
     func save(_ transaction: Transaction) throws {
-        // TODO: POST /v1/transactions or PATCH /v1/transactions/:id
-        // Attachments: POST /v1/transactions/:id/attachment (multipart, max 5MB jpeg/png)
-        //             DELETE /v1/transactions/:id/attachment; GET redirects 302 to attachmentURL
-        _ = transaction
-        throw NetworkError.unimplemented(endpoint: "POST|PATCH /v1/transactions")
+        try local.save(transaction)
+        scheduleSync()
     }
 
     func delete(_ transaction: Transaction) throws {
-        // TODO: DELETE /v1/transactions/:id
-        _ = transaction
-        throw NetworkError.unimplemented(endpoint: "DELETE /v1/transactions/:id")
+        try local.delete(transaction)
+        scheduleSync()
     }
 }
 
-// MARK: - Budget
-
 final class NetworkBudgetRepository: BudgetRepository {
-    func fetchAll() throws -> [Budget] {
-        // TODO: GET /v1/budgets
-        throw NetworkError.unimplemented(endpoint: "GET /v1/budgets")
+    private let local: SwiftDataBudgetRepository
+    private let scheduleSync: () -> Void
+
+    init(context: ModelContext, api: APIClient, scheduleSync: @escaping () -> Void) {
+        self.local = SwiftDataBudgetRepository(context: context)
+        self.scheduleSync = scheduleSync
+        _ = api
     }
 
-    func fetch(id: UUID) throws -> Budget? {
-        // TODO: GET /v1/budgets/:id
-        _ = id
-        throw NetworkError.unimplemented(endpoint: "GET /v1/budgets/:id")
-    }
+    func fetchAll() throws -> [Budget] { try local.fetchAll() }
+    func fetch(id: UUID) throws -> Budget? { try local.fetch(id: id) }
 
     func save(_ budget: Budget) throws {
-        // TODO: POST /v1/budgets or PATCH /v1/budgets/:id
-        _ = budget
-        throw NetworkError.unimplemented(endpoint: "POST|PATCH /v1/budgets")
+        try local.save(budget)
+        scheduleSync()
     }
 
     func delete(_ budget: Budget) throws {
-        // TODO: DELETE /v1/budgets/:id
-        _ = budget
-        throw NetworkError.unimplemented(endpoint: "DELETE /v1/budgets/:id")
+        try local.delete(budget)
+        scheduleSync()
     }
 }
 
-// MARK: - Goal
-
 final class NetworkGoalRepository: GoalRepository {
-    func fetchAll() throws -> [Goal] {
-        // TODO: GET /v1/goals
-        throw NetworkError.unimplemented(endpoint: "GET /v1/goals")
+    private let local: SwiftDataGoalRepository
+    private let scheduleSync: () -> Void
+
+    init(context: ModelContext, api: APIClient, scheduleSync: @escaping () -> Void) {
+        self.local = SwiftDataGoalRepository(context: context)
+        self.scheduleSync = scheduleSync
+        _ = api
     }
 
-    func fetch(id: UUID) throws -> Goal? {
-        // TODO: GET /v1/goals/:id
-        _ = id
-        throw NetworkError.unimplemented(endpoint: "GET /v1/goals/:id")
-    }
+    func fetchAll() throws -> [Goal] { try local.fetchAll() }
+    func fetch(id: UUID) throws -> Goal? { try local.fetch(id: id) }
 
     func save(_ goal: Goal) throws {
-        // TODO: POST /v1/goals or PATCH /v1/goals/:id
-        _ = goal
-        throw NetworkError.unimplemented(endpoint: "POST|PATCH /v1/goals")
+        try local.save(goal)
+        scheduleSync()
     }
 
     func delete(_ goal: Goal) throws {
-        // TODO: DELETE /v1/goals/:id
-        _ = goal
-        throw NetworkError.unimplemented(endpoint: "DELETE /v1/goals/:id")
+        try local.delete(goal)
+        scheduleSync()
     }
 }
 
-// MARK: - RecurringTransaction
-
 final class NetworkRecurringTransactionRepository: RecurringTransactionRepository {
-    func fetchAll() throws -> [RecurringTransaction] {
-        // TODO: GET /v1/recurring-transactions
-        throw NetworkError.unimplemented(endpoint: "GET /v1/recurring-transactions")
+    private let local: SwiftDataRecurringTransactionRepository
+    private let scheduleSync: () -> Void
+
+    init(context: ModelContext, api: APIClient, scheduleSync: @escaping () -> Void) {
+        self.local = SwiftDataRecurringTransactionRepository(context: context)
+        self.scheduleSync = scheduleSync
+        _ = api
     }
 
-    func fetch(id: UUID) throws -> RecurringTransaction? {
-        // TODO: GET /v1/recurring-transactions/:id
-        _ = id
-        throw NetworkError.unimplemented(endpoint: "GET /v1/recurring-transactions/:id")
-    }
+    func fetchAll() throws -> [RecurringTransaction] { try local.fetchAll() }
+    func fetch(id: UUID) throws -> RecurringTransaction? { try local.fetch(id: id) }
 
     func save(_ item: RecurringTransaction) throws {
-        // TODO: POST /v1/recurring-transactions or PATCH /v1/recurring-transactions/:id
-        _ = item
-        throw NetworkError.unimplemented(endpoint: "POST|PATCH /v1/recurring-transactions")
+        try local.save(item)
+        scheduleSync()
     }
 
     func delete(_ item: RecurringTransaction) throws {
-        // TODO: DELETE /v1/recurring-transactions/:id
-        _ = item
-        throw NetworkError.unimplemented(endpoint: "DELETE /v1/recurring-transactions/:id")
+        try local.delete(item)
+        scheduleSync()
     }
 }

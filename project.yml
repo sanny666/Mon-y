@@ -10,6 +10,7 @@ settings:
   TARGETED_DEVICE_FAMILY: "1,2"
   SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
   SUPPORTS_MACCATALYST: NO
+  API_BASE_URL: "https://moneyback.esl.kz"
 schemes:
   FinTrack:
     build:
@@ -17,6 +18,8 @@ schemes:
         FinTrack: all
     run:
       config: Debug
+      environmentVariables:
+        API_BASE_URL: "https://moneyback.esl.kz"
     archive:
       config: Release
 targets:
@@ -27,22 +30,27 @@ targets:
       - path: FinTrack
         excludes:
           - "**/.DS_Store"
-          # actool ломается: Xcode 26.6 SDK (23F81a) vs iOS 27 beta runtime (24A5390f).
-          # Accent задан в коде (.tint). Файлы каталога оставлены в репо для будущего.
           - "Resources/Assets.xcassets"
           - "Resources/Assets.xcassets/**"
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.sany.fintrack
       PRODUCT_NAME: FinTrack
       GENERATE_INFOPLIST_FILE: YES
-      INFOPLIST_KEY_CFBundleDisplayName: FinTrack
       INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
       INFOPLIST_KEY_UILaunchScreen_Generation: YES
       INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
       INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
-      INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "FinTrack использует фото для вложений к транзакциям (чеки)."
       SWIFT_STRICT_CONCURRENCY: targeted
       IPHONEOS_DEPLOYMENT_TARGET: "17.0"
       TARGETED_DEVICE_FAMILY: "1,2"
       SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
       SUPPORTS_MACCATALYST: NO
+    info:
+      path: FinTrack/Info.plist
+      properties:
+        CFBundleDisplayName: "Monëy"
+        APIBaseURL: $(API_BASE_URL)
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+          NSAllowsArbitraryLoads: true
+        NSPhotoLibraryUsageDescription: "Monëy использует фото для вложений к транзакциям (чеки)."
