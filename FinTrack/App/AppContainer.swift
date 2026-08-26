@@ -12,6 +12,7 @@ final class AppContainer {
     let recurring: RecurringTransactionRepository
     let balanceService: BalanceService
     let budgetService: BudgetService
+    let analyticsService: AnalyticsService
 
     private let context: ModelContext
     var refreshToken: Int = 0
@@ -26,6 +27,7 @@ final class AppContainer {
         self.recurring = SwiftDataRecurringTransactionRepository(context: context)
         self.balanceService = BalanceService()
         self.budgetService = BudgetService()
+        self.analyticsService = AnalyticsService()
     }
 
     func notifyChange() {

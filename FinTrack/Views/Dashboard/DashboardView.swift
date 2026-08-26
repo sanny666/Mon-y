@@ -1,3 +1,4 @@
+import Charts
 import SwiftUI
 
 struct DashboardView: View {
@@ -13,7 +14,7 @@ struct DashboardView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     balanceCard
                     monthSummary
-                    chartPlaceholder
+                    expenseTrendChart
                     recentSection
                 }
                 .padding()
@@ -71,16 +72,52 @@ struct DashboardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    private var chartPlaceholder: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "chart.line.uptrend.xyaxis")
-                .font(.title)
+    private var expenseTrendChart: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Расходы за 30 дней")
+                .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
-            Text("график скоро")
-                .foregroundStyle(.secondary)
+
+            if viewModel.expenseTrend.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                    Text("Нет расходов за 30 дней")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 140)
+            } else {
+                Chart(viewModel.expenseTrend) { point in
+                    LineMark(
+                        x: .value("День", point.date),
+                        y: .value("Расход", point.amount)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(Color.red.opacity(0.85))
+
+                    AreaMark(
+                        x: .value("День", point.date),
+                        y: .value("Расход", point.amount)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(Color.red.opacity(0.12))
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .day, count: 7)) { _ in
+                        AxisGridLine()
+                        AxisValueLabel(format: .dateTime.day().month(.abbreviated))
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading)
+                }
+                .frame(height: 140)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 140)
+        .padding()
         .background(Color.secondary.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }

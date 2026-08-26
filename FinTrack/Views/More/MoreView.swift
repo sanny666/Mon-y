@@ -6,6 +6,11 @@ struct MoreView: View {
             List {
                 Section {
                     NavigationLink {
+                        AnalyticsView()
+                    } label: {
+                        Label("Аналитика", systemImage: "chart.xyaxis.line")
+                    }
+                    NavigationLink {
                         CategoriesView()
                     } label: {
                         Label("Категории", systemImage: "tag.fill")

@@ -2,11 +2,13 @@ import Foundation
 import Observation
 
 @Observable
+@MainActor
 final class DashboardViewModel {
     var totalBalance: Double = 0
     var monthIncome: Double = 0
     var monthExpense: Double = 0
     var recentTransactions: [Transaction] = []
+    var expenseTrend: [DailyAmountPoint] = []
     var currencyCode: String = AppCurrency.kzt.rawValue
     var errorMessage: String?
 
@@ -17,6 +19,7 @@ final class DashboardViewModel {
             totalBalance = container.balanceService.totalBalance(accounts: accounts)
             monthIncome = container.balanceService.monthIncome(transactions: transactions)
             monthExpense = container.balanceService.monthExpense(transactions: transactions)
+            expenseTrend = container.analyticsService.dailyExpenses(transactions: transactions, days: 30)
             recentTransactions = try container.transactions.fetchRecent(limit: 5)
             currencyCode = accounts.first?.currency ?? defaultCurrency
             errorMessage = nil
@@ -27,6 +30,42 @@ final class DashboardViewModel {
 }
 
 @Observable
+@MainActor
+final class AnalyticsViewModel {
+    var period: AnalyticsPeriod = .month
+    var categorySlices: [CategoryExpenseSlice] = []
+    var monthComparisons: [MonthIncomeExpense] = []
+    var balancePoints: [BalancePoint] = []
+    var currencyCode: String = AppCurrency.kzt.rawValue
+    var errorMessage: String?
+
+    func reload(container: AppContainer, defaultCurrency: String) {
+        do {
+            let accounts = try container.accounts.fetchAll()
+            let transactions = try container.transactions.fetchAll()
+            categorySlices = container.analyticsService.expensesByCategory(
+                transactions: transactions,
+                period: period
+            )
+            monthComparisons = container.analyticsService.incomeExpenseByMonth(
+                transactions: transactions,
+                months: 12
+            )
+            balancePoints = container.analyticsService.balanceSeries(
+                accounts: accounts,
+                transactions: transactions,
+                days: 90
+            )
+            currencyCode = accounts.first?.currency ?? defaultCurrency
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+@Observable
+@MainActor
 final class TransactionsViewModel {
     var transactions: [Transaction] = []
     var accounts: [Account] = []
@@ -109,6 +148,7 @@ final class TransactionsViewModel {
 }
 
 @Observable
+@MainActor
 final class AccountsViewModel {
     var accounts: [Account] = []
     var balances: [UUID: Double] = [:]
@@ -138,6 +178,7 @@ final class AccountsViewModel {
 }
 
 @Observable
+@MainActor
 final class CategoriesViewModel {
     var categories: [Category] = []
     var errorMessage: String?
@@ -171,6 +212,7 @@ final class CategoriesViewModel {
 }
 
 @Observable
+@MainActor
 final class BudgetsViewModel {
     var budgets: [Budget] = []
     var errorMessage: String?
@@ -197,6 +239,7 @@ final class BudgetsViewModel {
 }
 
 @Observable
+@MainActor
 final class GoalsViewModel {
     var goals: [Goal] = []
     var errorMessage: String?
@@ -222,6 +265,7 @@ final class GoalsViewModel {
 }
 
 @Observable
+@MainActor
 final class RecurringViewModel {
     var items: [RecurringTransaction] = []
     var errorMessage: String?
