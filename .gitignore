@@ -1,3 +1,4 @@
+.derivedData/
 DerivedData/
 build/
 *.xcuserstate
