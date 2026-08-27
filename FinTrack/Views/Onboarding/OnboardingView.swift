@@ -1,108 +1,78 @@
 import SwiftUI
 
 struct OnboardingView: View {
-    @Environment(AppContainer.self) private var container
-    @AppStorage(AppStorageKeys.defaultCurrency) private var defaultCurrency = AppCurrency.kzt.rawValue
+    enum Phase: Hashable {
+        case setup
+        case pin
+        case guide
+    }
 
-    @State private var step = 0
-    @State private var selectedCurrency = AppCurrency.kzt
-    @State private var accountName = "Основной счёт"
-    @State private var accountType: AccountType = .card
-    @State private var initialBalance = ""
-    @State private var errorMessage: String?
+    enum EntryMode {
+        /// First launch: registration → setup → pin → guide
+        case full
+        /// Logged out returning user: login/register only
+        case authOnly
+        /// Logged in, setup/guide/pin not finished
+        case setupOnly
+        /// Logged in user without PIN (migration / interrupted onboarding)
+        case pinOnly
+    }
 
+    let entryMode: EntryMode
     let onComplete: () -> Void
 
+    @Environment(AppLockController.self) private var lockController
+    @AppStorage(AppStorageKeys.appAccentHex) private var appAccentHex = AppAccent.defaultHex
+    @State private var path = NavigationPath()
+
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
-                ProgressView(value: Double(step + 1), total: 2)
-                    .tint(.accentColor)
-
-                if step == 0 {
-                    currencyStep
-                } else {
-                    accountStep
+        NavigationStack(path: $path) {
+            root
+                .navigationDestination(for: Phase.self) { phase in
+                    switch phase {
+                    case .setup:
+                        OnboardingSetupView {
+                            path.append(Phase.pin)
+                        }
+                    case .pin:
+                        OnboardingPINView {
+                            if entryMode == .authOnly {
+                                onComplete()
+                            } else {
+                                path.append(Phase.guide)
+                            }
+                        }
+                    case .guide:
+                        OnboardingGuideView(onFinish: onComplete)
+                    }
                 }
+        }
+        .tint(Color(hex: appAccentHex))
+    }
 
-                Spacer()
-
-                Button(step == 0 ? "Далее" : "Начать") {
-                    if step == 0 {
-                        defaultCurrency = selectedCurrency.rawValue
-                        step = 1
+    @ViewBuilder
+    private var root: some View {
+        switch entryMode {
+        case .full, .authOnly:
+            OnboardingAuthView {
+                if entryMode == .authOnly {
+                    if lockController.hasPIN {
+                        onComplete()
                     } else {
-                        finish()
+                        path.append(Phase.pin)
                     }
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .frame(maxWidth: .infinity)
-                .disabled(step == 1 && accountName.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-            .padding(24)
-            .navigationTitle("Monëy")
-            .alert("Ошибка", isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { if !$0 { errorMessage = nil } }
-            )) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(errorMessage ?? "")
-            }
-        }
-    }
-
-    private var currencyStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Выберите валюту по умолчанию")
-                .font(.title2.bold())
-            Text("Её можно изменить позже в настройках.")
-                .foregroundStyle(.secondary)
-
-            Picker("Валюта", selection: $selectedCurrency) {
-                ForEach(AppCurrency.allCases) { currency in
-                    Text(currency.title).tag(currency)
+                } else {
+                    path.append(Phase.setup)
                 }
             }
-            .pickerStyle(.inline)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var accountStep: some View {
-        Form {
-            Section("Первый счёт") {
-                TextField("Название", text: $accountName)
-                Picker("Тип", selection: $accountType) {
-                    ForEach(AccountType.allCases) { type in
-                        Text(type.title).tag(type)
-                    }
-                }
-                TextField("Начальный баланс", text: $initialBalance)
-                    .keyboardType(.decimalPad)
+        case .setupOnly:
+            OnboardingSetupView {
+                path.append(Phase.pin)
             }
-        }
-        .scrollContentBackground(.hidden)
-    }
-
-    private func finish() {
-        let balance = Double(initialBalance.replacingOccurrences(of: ",", with: ".")) ?? 0
-        let account = Account(
-            name: accountName.trimmingCharacters(in: .whitespacesAndNewlines),
-            type: accountType,
-            currency: selectedCurrency.rawValue,
-            initialBalance: balance,
-            icon: accountType.systemImage + ".fill",
-            colorHex: "#268F6B"
-        )
-        do {
-            try container.accounts.save(account)
-            container.seedDefaultCategoriesIfNeeded()
-            container.notifyChange()
-            onComplete()
-        } catch {
-            errorMessage = error.localizedDescription
+        case .pinOnly:
+            OnboardingPINView {
+                onComplete()
+            }
         }
     }
 }

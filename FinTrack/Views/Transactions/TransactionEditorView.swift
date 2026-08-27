@@ -26,8 +26,6 @@ struct TransactionEditorView: View {
     @State private var rootCategories: [Category] = []
     @State private var errorMessage: String?
 
-    private let accent = Color(hex: "#268F6B")
-
     private var filteredRoots: [Category] {
         guard type != .transfer else { return [] }
         let needed: CategoryType = type == .income ? .income : .expense
@@ -45,8 +43,7 @@ struct TransactionEditorView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            headerBar
+        NavigationStack {
             Form {
                 Section {
                     TextField("Сумма", text: $amountText)
@@ -106,8 +103,46 @@ struct TransactionEditorView: View {
                     photoEditor
                 }
             }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if #available(iOS 26.0, *) {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(role: .close) {
+                            dismiss()
+                        }
+                        .tint(.red)
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(role: .confirm) {
+                            save()
+                        }
+                        .disabled(!canSave)
+                    }
+                } else {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                        }
+                        .tint(.red)
+                        .accessibilityLabel("Закрыть")
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button {
+                            save()
+                        } label: {
+                            Image(systemName: "checkmark")
+                        }
+                        .disabled(!canSave)
+                        .accessibilityLabel("Сохранить")
+                    }
+                }
+                ToolbarItem(placement: .principal) {
+                    typeSlider
+                }
+            }
         }
-        .background(Color(.systemGroupedBackground))
         .onAppear(perform: load)
         .onChange(of: type) { _, _ in
             selectedRootCategoryID = filteredRoots.first?.id
@@ -129,42 +164,6 @@ struct TransactionEditorView: View {
         }
     }
 
-    private var headerBar: some View {
-        HStack(spacing: 12) {
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .frame(width: 40, height: 40)
-                    .background(Circle().strokeBorder(Color.secondary.opacity(0.35), lineWidth: 1.5))
-            }
-            .buttonStyle(.plain)
-
-            Spacer(minLength: 0)
-
-            typeSlider
-
-            Spacer(minLength: 0)
-
-            Button {
-                save()
-            } label: {
-                Image(systemName: "checkmark")
-                    .font(.body.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
-                    .background(Circle().fill(canSave ? accent : Color.secondary.opacity(0.35)))
-            }
-            .buttonStyle(.plain)
-            .disabled(!canSave)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color(.systemBackground))
-    }
-
     private var typeSlider: some View {
         HStack(spacing: 18) {
             ForEach(TransactionType.allCases) { item in
@@ -178,7 +177,7 @@ struct TransactionEditorView: View {
                             .font(.subheadline.weight(type == item ? .semibold : .regular))
                             .foregroundStyle(type == item ? .primary : .secondary)
                         Capsule()
-                            .fill(type == item ? accent : Color.clear)
+                            .fill(type == item ? Color.accentColor : Color.clear)
                             .frame(height: 3)
                             .frame(maxWidth: 36)
                     }
@@ -207,7 +206,7 @@ struct TransactionEditorView: View {
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(accent.opacity(0.12))
+                        .background(Color.accentColor.opacity(0.12))
                         .clipShape(Capsule())
                     }
                 }

@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import SwiftData
 import UIKit
+import WidgetKit
 
 enum DataMode: String {
     case local
@@ -30,6 +31,9 @@ final class AppContainer {
     /// Set when refresh fails — UI should offer login again.
     var needsReauthentication = false
     var authBannerMessage: String?
+    /// Bumps on login / register / logout / session expiry so RootView re-evaluates the auth gate.
+    private(set) var sessionEpoch: Int = 0
+    var isLoggedIn: Bool { authManager.isLoggedIn }
 
     private let context: ModelContext
     var refreshToken: Int = 0
@@ -65,8 +69,9 @@ final class AppContainer {
             Task { @MainActor in
                 self?.disableSyncedMode()
                 self?.needsReauthentication = true
-                self?.authBannerMessage = "Сессия истекла. Войдите снова для синхронизации."
+                self?.authBannerMessage = "Сессия истекла. Войдите снова."
                 self?.syncStatus = .error("Сессия истекла")
+                self?.bumpSessionEpoch()
                 self?.notifyChange()
             }
         }
@@ -79,6 +84,51 @@ final class AppContainer {
 
     func notifyChange() {
         refreshToken += 1
+        publishWidgetSnapshot()
+    }
+
+    /// Writes a lightweight JSON snapshot for the home-screen widget (App Group).
+    func publishWidgetSnapshot(defaultCurrency: String? = nil) {
+        let currencyFallback = defaultCurrency
+            ?? UserDefaults.standard.string(forKey: AppStorageKeys.defaultCurrency)
+            ?? AppCurrency.kzt.rawValue
+
+        do {
+            let accounts = try accounts.fetchAll()
+            let total = balanceService.totalBalance(accounts: accounts)
+            let currencyCode = accounts.first?.currency ?? currencyFallback
+            let balanceText = CurrencyFormatter.string(amount: total, currencyCode: currencyCode)
+
+            let recentExpenses = try transactions.fetchRecent(limit: 30)
+                .filter { $0.type == .expense }
+                .prefix(3)
+                .map { tx -> WidgetExpenseItem in
+                    let title: String
+                    if !tx.note.isEmpty {
+                        title = tx.note
+                    } else {
+                        title = tx.category?.displayName ?? "Расход"
+                    }
+                    let txCurrency = tx.account?.currency ?? currencyCode
+                    return WidgetExpenseItem(
+                        id: tx.id.uuidString,
+                        title: title,
+                        amountText: CurrencyFormatter.string(amount: tx.amount, currencyCode: txCurrency),
+                        dateText: tx.date.formatted(date: .abbreviated, time: .omitted)
+                    )
+                }
+
+            let snapshot = WidgetSnapshot(
+                balanceText: balanceText,
+                currencyCode: currencyCode,
+                recentExpenses: Array(recentExpenses),
+                updatedAt: .now
+            )
+            WidgetSnapshotStore.save(snapshot)
+            WidgetCenter.shared.reloadAllTimelines()
+        } catch {
+            // Keep app responsive; widget shows previous snapshot.
+        }
     }
 
     /// Materializes due recurring templates. Safe in both `.local` and `.synced`
@@ -194,6 +244,7 @@ final class AppContainer {
         needsReauthentication = false
         authBannerMessage = nil
         enableSyncedMode()
+        bumpSessionEpoch()
     }
 
     func register(email: String, password: String, name: String?) async throws {
@@ -201,11 +252,20 @@ final class AppContainer {
         needsReauthentication = false
         authBannerMessage = nil
         enableSyncedMode()
+        bumpSessionEpoch()
     }
 
     func logout() async {
         await authManager.logout()
         disableSyncedMode()
+        needsReauthentication = false
+        authBannerMessage = nil
+        bumpSessionEpoch()
+    }
+
+    private func bumpSessionEpoch() {
+        sessionEpoch += 1
+        notifyChange()
     }
 
     func performSync() async {
@@ -222,6 +282,7 @@ final class AppContainer {
     func handleSceneBecameActive() {
         // Recurring first — always, including `.local` without login.
         processDueRecurring()
+        publishWidgetSnapshot()
         guard dataMode == .synced else { return }
         Task { await performSync() }
     }

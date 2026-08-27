@@ -6,8 +6,49 @@ enum AppStorageKeys {
     static let hasCompletedOnboarding = "hasCompletedOnboarding"
     static let defaultCurrency = "defaultCurrency"
     static let appTheme = "appTheme"
+    static let appAccentHex = "appAccentHex"
     static let faceIDEnabled = "faceIDEnabled"
     static let hasSeededSubcategories = "hasSeededSubcategories"
+    static let hasLaunchedInThisInstall = "hasLaunchedInThisInstall"
+}
+
+/// UserDefaults vanish on uninstall; Keychain often does not. First launch of a
+/// fresh sandbox must drop leftover PIN / tokens so onboarding starts clean.
+enum FreshInstall {
+    static func resetStaleSecretsIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: AppStorageKeys.hasLaunchedInThisInstall) else { return }
+
+        let keychain = KeychainStore()
+        try? keychain.delete("auth.accessToken")
+        try? keychain.delete("auth.refreshToken")
+        try? keychain.delete("auth.userEmail")
+        try? keychain.delete("appLockPIN")
+        WidgetSnapshotStore.clear()
+
+        defaults.set(true, forKey: AppStorageKeys.hasLaunchedInThisInstall)
+    }
+}
+
+enum Greeting {
+    private static let russian = Locale(identifier: "ru_RU")
+
+    static func title(at date: Date = .now) -> String {
+        let hour = Calendar.current.component(.hour, from: date)
+        switch hour {
+        case 5..<12: return "Доброе утро"
+        case 12..<17: return "Добрый день"
+        case 17..<23: return "Добрый вечер"
+        default: return "Доброй ночи"
+        }
+    }
+
+    static func subtitle(at date: Date = .now) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = russian
+        formatter.setLocalizedDateFormatFromTemplate("EEEE, d MMMM")
+        return formatter.string(from: date)
+    }
 }
 
 enum CurrencyFormatter {
@@ -67,6 +108,14 @@ enum IconPalette {
         "#E74C3C", "#5C6BC0", "#B85C38", "#1ABC9C",
         "#F39C12", "#34495E"
     ]
+}
+
+/// Semantic tints for dashboard section icons (meaning-based, not accent).
+enum SemanticIcon {
+    static let chart = Color(hex: "#2F6FED")
+    static let today = Color(hex: "#F5A524")
+    static let flame = Color(hex: "#FF6B00")
+    static let list = Color(hex: "#5C6BC0")
 }
 
 /// Local file helpers for receipt photos until remote upload is wired.

@@ -61,41 +61,50 @@ final class SyncEngine {
             status = .success(Date())
             onDataChanged()
         } catch let error as NetworkError {
-            if case .unauthorized = error {
-                status = .error("Сессия истекла")
-            } else if case .noConnection = error {
-                status = .error("Нет сети")
-            } else if case .timeout = error {
-                status = .error("Таймаут сети")
-            } else if error.isConnectivityFailure {
-                status = .error("Нет сети")
-            } else {
-                status = .error("Ошибка сервера")
-            }
+            status = .error(Self.userFacingMessage(for: error))
         } catch {
             status = .error(error.localizedDescription)
         }
     }
 
     func pushPendingChanges() async throws {
-        let accounts = try pendingAccounts().map(DTOMapper.dto(from:))
-        let categories = try pendingCategories().map(DTOMapper.dto(from:))
-        let transactions = try pendingTransactions().map(DTOMapper.dto(from:))
-        let budgets = try pendingBudgets().map(DTOMapper.dto(from:))
-        let goals = try pendingGoals().map(DTOMapper.dto(from:))
-        let recurring = try pendingRecurring().map(DTOMapper.dto(from:))
+        var accounts = try pendingAccounts()
+        var categories = try pendingCategories()
+        let transactions = try pendingTransactions()
+        let budgets = try pendingBudgets()
+        let goals = try pendingGoals()
+        let recurring = try pendingRecurring()
+
+        // Server 500s on missing FKs and on child-before-parent category order.
+        // Include referenced rows even if already marked synced (e.g. after API host change).
+        for tx in transactions {
+            includeAccount(tx.account, into: &accounts)
+            includeAccount(tx.toAccount, into: &accounts)
+            includeCategoryTree(tx.category, into: &categories)
+        }
+        for budget in budgets {
+            includeCategoryTree(budget.category, into: &categories)
+        }
+        for item in recurring {
+            includeAccount(item.account, into: &accounts)
+            includeCategoryTree(item.category, into: &categories)
+        }
+        for parent in categories.compactMap(\.parent) {
+            includeCategoryTree(parent, into: &categories)
+        }
+        categories = Self.parentsBeforeChildren(categories)
 
         let isEmpty = accounts.isEmpty && categories.isEmpty && transactions.isEmpty
             && budgets.isEmpty && goals.isEmpty && recurring.isEmpty
         guard !isEmpty else { return }
 
         let request = SyncPushRequest(
-            accounts: .init(changes: accounts),
-            categories: .init(changes: categories),
-            transactions: .init(changes: transactions),
-            budgets: .init(changes: budgets),
-            goals: .init(changes: goals),
-            recurringTransactions: .init(changes: recurring)
+            accounts: .init(changes: accounts.map(DTOMapper.dto(from:))),
+            categories: .init(changes: categories.map(DTOMapper.dto(from:))),
+            transactions: .init(changes: transactions.map(DTOMapper.dto(from:))),
+            budgets: .init(changes: budgets.map(DTOMapper.dto(from:))),
+            goals: .init(changes: goals.map(DTOMapper.dto(from:))),
+            recurringTransactions: .init(changes: recurring.map(DTOMapper.dto(from:)))
         )
 
         let response: SyncPushResponse = try await api.post("/v1/sync/push", body: request)
@@ -321,6 +330,65 @@ final class SyncEngine {
         )
         if existing == nil { context.insert(item) }
         DTOMapper.apply(dto, to: item, account: account, category: category)
+    }
+
+    // MARK: - Push graph
+
+    private static func userFacingMessage(for error: NetworkError) -> String {
+        switch error {
+        case .unauthorized:
+            return "Сессия истекла"
+        case .timeout:
+            return "Таймаут сети"
+        case .noConnection, .transport:
+            return "Нет сети"
+        case .validation(let message, _):
+            return message ?? "Ошибка валидации"
+        case .http(let status, _, let message):
+            if status >= 500 { return "Ошибка сервера" }
+            return message ?? "Ошибка сервера"
+        default:
+            return "Ошибка сервера"
+        }
+    }
+
+    private func includeAccount(_ account: Account?, into accounts: inout [Account]) {
+        guard let account, !accounts.contains(where: { $0.id == account.id }) else { return }
+        accounts.append(account)
+    }
+
+    private func includeCategoryTree(_ category: Category?, into categories: inout [Category]) {
+        var current = category
+        while let cat = current {
+            if !categories.contains(where: { $0.id == cat.id }) {
+                categories.append(cat)
+            }
+            current = cat.parent
+        }
+    }
+
+    /// Server applies categories in array order and 500s if a child appears before its parent.
+    private static func parentsBeforeChildren(_ items: [Category]) -> [Category] {
+        let ids = Set(items.map(\.id))
+        var remaining = items
+        var result: [Category] = []
+        var placed: Set<UUID> = []
+        while !remaining.isEmpty {
+            let ready = remaining.filter { cat in
+                guard let parentId = cat.parent?.id, ids.contains(parentId) else { return true }
+                return placed.contains(parentId)
+            }
+            if ready.isEmpty {
+                result.append(contentsOf: remaining)
+                break
+            }
+            for cat in ready {
+                result.append(cat)
+                placed.insert(cat.id)
+            }
+            remaining.removeAll { placed.contains($0.id) }
+        }
+        return result
     }
 
     // MARK: - Pending queries (include tombstones)

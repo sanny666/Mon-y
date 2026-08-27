@@ -39,6 +39,23 @@ struct BalanceService {
             .filter { $0.type == .expense && (range?.contains($0.date) ?? false) }
             .reduce(0) { $0 + $1.amount }
     }
+
+    func dayIncome(transactions: [Transaction], in date: Date = .now) -> Double {
+        sum(transactions, type: .income, inDayOf: date)
+    }
+
+    func dayExpense(transactions: [Transaction], in date: Date = .now) -> Double {
+        sum(transactions, type: .expense, inDayOf: date)
+    }
+
+    private func sum(_ transactions: [Transaction], type: TransactionType, inDayOf date: Date) -> Double {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: date)
+        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return 0 }
+        return transactions
+            .filter { $0.type == type && $0.date >= start && $0.date < end }
+            .reduce(0) { $0 + $1.amount }
+    }
 }
 
 struct BudgetService {

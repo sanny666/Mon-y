@@ -118,7 +118,7 @@ struct TransactionRowView: View {
                 if !transaction.tags.isEmpty {
                     Text(transaction.tags.prefix(3).map { "#\($0)" }.joined(separator: " "))
                         .font(.caption2)
-                        .foregroundStyle(Color(hex: "#268F6B"))
+                        .foregroundStyle(Color.accentColor)
                         .lineLimit(1)
                 }
             }
@@ -165,5 +165,66 @@ struct TransactionRowView: View {
         case .expense: return transaction.category?.icon ?? "arrow.up.circle.fill"
         case .transfer: return "arrow.left.arrow.right"
         }
+    }
+}
+
+struct GlassAddButton: View {
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                Button(action: action) {
+                    Image(systemName: "plus")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.glassProminent)
+                .buttonBorderShape(.circle)
+                .controlSize(.regular)
+                .tint(.accentColor)
+            } else {
+                Button(action: action) {
+                    Image(systemName: "plus")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(Color.accentColor, in: Circle())
+                        .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
+                }
+            }
+        }
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+private struct GlassAddFABModifier: ViewModifier {
+    var isVisible: Bool = true
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .bottomTrailing) {
+            if isVisible {
+                GlassAddButton(accessibilityLabel: accessibilityLabel, action: action)
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 20)
+            }
+        }
+    }
+}
+
+extension View {
+    func glassAddFAB(
+        isVisible: Bool = true,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        modifier(GlassAddFABModifier(
+            isVisible: isVisible,
+            accessibilityLabel: accessibilityLabel,
+            action: action
+        ))
     }
 }

@@ -21,6 +21,20 @@
                ReferencedContainer = "container:FinTrack.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "361AE69D7682BE959C6DD237"
+               BuildableName = "FinTrackWidget.appex"
+               BlueprintName = "FinTrackWidget"
+               ReferencedContainer = "container:FinTrack.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
