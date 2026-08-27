@@ -50,6 +50,7 @@ struct GoalsView: View {
                         }
                     }
                 }
+                .appGroupedList()
             }
         }
         .navigationTitle("Цели")
@@ -113,13 +114,12 @@ struct GoalEditorView: View {
         .navigationTitle(goal == nil ? "Новая цель" : "Цель")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Отмена") { dismiss() }
-            }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Сохранить") { save() }
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty
-                              || (Double(targetText.replacingOccurrences(of: ",", with: ".")) ?? 0) <= 0)
+            ModalCloseToolbarItem { dismiss() }
+            ModalConfirmToolbarItem(
+                isDisabled: name.trimmingCharacters(in: .whitespaces).isEmpty
+                    || (Double(targetText.replacingOccurrences(of: ",", with: ".")) ?? 0) <= 0
+            ) {
+                save()
             }
         }
         .onAppear {

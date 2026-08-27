@@ -22,6 +22,49 @@ struct EmptyStateView: View {
     }
 }
 
+/// Close control for sheets: X on iOS 26+, `xmark` on earlier.
+struct ModalCloseToolbarItem: ToolbarContent {
+    var action: () -> Void
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            if #available(iOS 26.0, *) {
+                Button(role: .close, action: action)
+                    .tint(.red)
+            } else {
+                Button(action: action) {
+                    Image(systemName: "xmark")
+                }
+                .tint(.red)
+                .accessibilityLabel("Закрыть")
+            }
+        }
+    }
+}
+
+/// Confirm control for sheets: checkmark on iOS 26+, `checkmark` on earlier.
+struct ModalConfirmToolbarItem: ToolbarContent {
+    var isDisabled: Bool = false
+    var accessibilityLabel: String = "Сохранить"
+    var action: () -> Void
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .confirmationAction) {
+            if #available(iOS 26.0, *) {
+                Button(role: .confirm, action: action)
+                    .disabled(isDisabled)
+                    .accessibilityLabel(accessibilityLabel)
+            } else {
+                Button(action: action) {
+                    Image(systemName: "checkmark")
+                }
+                .disabled(isDisabled)
+                .accessibilityLabel(accessibilityLabel)
+            }
+        }
+    }
+}
+
 struct AmountText: View {
     let amount: Double
     let currencyCode: String
@@ -226,5 +269,65 @@ extension View {
             accessibilityLabel: accessibilityLabel,
             action: action
         ))
+    }
+
+    /// Animates chart values only on app launch / return from background — not on in-app navigation.
+    func chartAppearAnimation(_ progress: Binding<Double>) -> some View {
+        modifier(ChartAppearAnimationModifier(progress: progress))
+    }
+}
+
+/// Bumped when the app becomes active from a cold start or background.
+@Observable
+@MainActor
+final class ChartEntranceController {
+    private(set) var generation = 0
+    private(set) var activeAt = Date.distantPast
+
+    /// Charts that mount shortly after entrance (e.g. after skeleton) may still grow in.
+    var isWithinEntranceWindow: Bool {
+        Date().timeIntervalSince(activeAt) < 1.75
+    }
+
+    func markAppBecameActive() {
+        generation += 1
+        activeAt = .now
+    }
+}
+
+private struct ChartAppearAnimationModifier: ViewModifier {
+    @Binding var progress: Double
+    @Environment(ChartEntranceController.self) private var entrance
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var lastPlayedGeneration = -1
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear { syncToCurrentGeneration() }
+            .onChange(of: entrance.generation) { _, _ in
+                playEntrance()
+            }
+    }
+
+    private func syncToCurrentGeneration() {
+        guard lastPlayedGeneration != entrance.generation else { return }
+        if entrance.isWithinEntranceWindow {
+            playEntrance()
+        } else {
+            lastPlayedGeneration = entrance.generation
+            progress = 1
+        }
+    }
+
+    private func playEntrance() {
+        lastPlayedGeneration = entrance.generation
+        if reduceMotion {
+            progress = 1
+            return
+        }
+        progress = 0
+        withAnimation(.easeOut(duration: 0.9)) {
+            progress = 1
+        }
     }
 }

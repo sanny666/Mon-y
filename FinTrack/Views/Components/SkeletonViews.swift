@@ -114,10 +114,9 @@ struct ListSkeleton: View {
                         SkeletonRow(showsTrailing: false)
                     }
                 }
-                .listRowBackground(Color(uiColor: .secondarySystemGroupedBackground))
             }
         }
-        .listStyle(.insetGrouped)
+        .appGroupedList()
         .scrollDisabled(true)
         .skeletonPulse()
         .allowsHitTesting(false)
@@ -128,18 +127,24 @@ struct DashboardSkeleton: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                SkeletonBar(width: 160, height: 14)
-                    .padding(.top, -4)
-
-                DashboardCard {
+                DashboardCard(verticalPadding: 22) {
                     VStack(alignment: .leading, spacing: 10) {
                         SkeletonBar(width: 110, height: 12)
                         SkeletonBar(width: 180, height: 34, corner: 8)
                     }
+                    .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
                 }
 
-                donutPlaceholder
-                donutPlaceholder
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: 12),
+                        GridItem(.flexible(), spacing: 12)
+                    ],
+                    spacing: 12
+                ) {
+                    compactDonutPlaceholder
+                    compactDonutPlaceholder
+                }
 
                 DashboardCard {
                     VStack(alignment: .leading, spacing: 12) {
@@ -185,16 +190,15 @@ struct DashboardSkeleton: View {
         }
     }
 
-    private var donutPlaceholder: some View {
-        DashboardCard {
-            VStack(alignment: .leading, spacing: 16) {
+    private var compactDonutPlaceholder: some View {
+        DashboardCard(verticalPadding: 14) {
+            VStack(alignment: .leading, spacing: 12) {
                 header
-                HStack(spacing: 20) {
-                    SkeletonCircle(size: 148)
-                    VStack(alignment: .leading, spacing: 12) {
-                        legendLine
-                        legendLine
-                    }
+                SkeletonCircle(size: 108)
+                    .frame(maxWidth: .infinity)
+                VStack(alignment: .leading, spacing: 8) {
+                    legendLine
+                    legendLine
                 }
             }
         }
@@ -211,23 +215,26 @@ struct DashboardSkeleton: View {
 struct AnalyticsSkeleton: View {
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 16) {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.primary.opacity(0.08))
                     .frame(height: 32)
 
                 ForEach(0..<3, id: \.self) { _ in
-                    VStack(alignment: .leading, spacing: 12) {
-                        SkeletonBar(width: 180, height: 16)
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.primary.opacity(0.08))
-                            .frame(height: 180)
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            SkeletonBar(width: 180, height: 16)
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Color.primary.opacity(0.08))
+                                .frame(height: 180)
+                        }
                     }
                 }
             }
-            .padding()
+            .padding(.horizontal, 16)
         }
         .scrollDisabled(true)
+        .background(Color(uiColor: .systemGroupedBackground))
         .skeletonPulse()
         .allowsHitTesting(false)
     }

@@ -6,6 +6,7 @@ final class AuthManager {
         static let accessToken = "auth.accessToken"
         static let refreshToken = "auth.refreshToken"
         static let userEmail = "auth.userEmail"
+        static let userName = "auth.userName"
     }
 
     private let keychain: KeychainStore
@@ -13,6 +14,7 @@ final class AuthManager {
     private let session: URLSession
 
     private(set) var userEmail: String?
+    private(set) var userName: String?
 
     var onSessionExpired: (() -> Void)?
 
@@ -25,6 +27,28 @@ final class AuthManager {
         self.baseURL = baseURL
         self.session = session
         self.userEmail = try? keychain.get(Keys.userEmail)
+        self.userName = try? keychain.get(Keys.userName)
+    }
+
+    var displayName: String {
+        if let userName, !userName.isEmpty { return userName }
+        if let userEmail, !userEmail.isEmpty { return userEmail }
+        return "Профиль"
+    }
+
+    var initials: String {
+        let name = userName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !name.isEmpty {
+            let parts = name.split(whereSeparator: { $0.isWhitespace })
+            let letters = parts.prefix(2).compactMap(\.first)
+            if !letters.isEmpty {
+                return String(letters).uppercased()
+            }
+        }
+        if let first = userEmail?.first {
+            return String(first).uppercased()
+        }
+        return "?"
     }
 
     var accessToken: String? {
@@ -87,18 +111,44 @@ final class AuthManager {
         onSessionExpired?()
     }
 
+    func applyUser(_ user: AuthUserDTO) {
+        persistUser(email: user.email, name: user.name, overwriteName: true)
+    }
+
+    func setLocalName(_ name: String?) {
+        persistUser(email: userEmail ?? "", name: name, overwriteName: true)
+    }
+
     private func persist(_ tokens: AuthTokensDTO) throws {
         try keychain.set(tokens.accessToken, forKey: Keys.accessToken)
         try keychain.set(tokens.refreshToken, forKey: Keys.refreshToken)
-        try keychain.set(tokens.user.email, forKey: Keys.userEmail)
-        userEmail = tokens.user.email
+        let incomingName = tokens.user.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        persistUser(email: tokens.user.email, name: tokens.user.name, overwriteName: !incomingName.isEmpty)
+    }
+
+    private func persistUser(email: String, name: String?, overwriteName: Bool) {
+        if !email.isEmpty {
+            try? keychain.set(email, forKey: Keys.userEmail)
+            userEmail = email
+        }
+        guard overwriteName else { return }
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if trimmed.isEmpty {
+            try? keychain.delete(Keys.userName)
+            userName = nil
+        } else {
+            try? keychain.set(trimmed, forKey: Keys.userName)
+            userName = trimmed
+        }
     }
 
     private func clearLocalSession() {
         try? keychain.delete(Keys.accessToken)
         try? keychain.delete(Keys.refreshToken)
         try? keychain.delete(Keys.userEmail)
+        try? keychain.delete(Keys.userName)
         userEmail = nil
+        userName = nil
     }
 
     private func postUnauthenticated<Body: Encodable, T: Decodable>(path: String, body: Body) async throws -> T {

@@ -263,6 +263,38 @@ final class AppContainer {
         bumpSessionEpoch()
     }
 
+    func updateProfileName(_ name: String) async throws {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let payload = UpdateProfileRequestDTO(name: trimmed.isEmpty ? nil : trimmed)
+        do {
+            let user: AuthUserDTO = try await apiClient.patch("/v1/auth/me", body: payload)
+            authManager.applyUser(user)
+        } catch let error as NetworkError {
+            if case .http(let status, _, _) = error, status == 404 {
+                authManager.setLocalName(trimmed.isEmpty ? nil : trimmed)
+            } else {
+                throw error
+            }
+        }
+        notifyChange()
+    }
+
+    func changePassword(current: String, new: String) async throws {
+        let payload = ChangePasswordRequestDTO(currentPassword: current, newPassword: new)
+        do {
+            try await apiClient.postEmpty("/v1/auth/change-password", body: payload)
+        } catch let error as NetworkError {
+            if case .http(let status, _, _) = error, status == 404 {
+                throw NetworkError.http(
+                    status: 404,
+                    code: nil,
+                    message: "Сервер пока не поддерживает смену пароля."
+                )
+            }
+            throw error
+        }
+    }
+
     private func bumpSessionEpoch() {
         sessionEpoch += 1
         notifyChange()

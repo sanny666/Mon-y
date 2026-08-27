@@ -53,6 +53,7 @@ struct AccountsView: View {
                             }
                         }
                     }
+                    .appGroupedList()
                 }
             }
             .navigationTitle("Счета")
@@ -139,6 +140,7 @@ struct AccountDetailView: View {
                         }
                     }
                 }
+                .appGroupedList()
             }
         }
         .navigationTitle(account.name)
@@ -213,12 +215,9 @@ struct AccountEditorView: View {
         .navigationTitle(account == nil ? "Новый счёт" : "Счёт")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Отмена") { dismiss() }
-            }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Сохранить") { save() }
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+            ModalCloseToolbarItem { dismiss() }
+            ModalConfirmToolbarItem(isDisabled: name.trimmingCharacters(in: .whitespaces).isEmpty) {
+                save()
             }
         }
         .onAppear {

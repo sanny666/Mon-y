@@ -44,6 +44,7 @@ struct BudgetsView: View {
                         }
                     }
                 }
+                .appGroupedList()
             }
         }
         .navigationTitle("Бюджеты")
@@ -97,12 +98,12 @@ struct BudgetEditorView: View {
         .navigationTitle("Новый бюджет")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Отмена") { dismiss() }
-            }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Сохранить") { save() }
-                    .disabled(selectedCategoryID == nil || (Double(limitText.replacingOccurrences(of: ",", with: ".")) ?? 0) <= 0)
+            ModalCloseToolbarItem { dismiss() }
+            ModalConfirmToolbarItem(
+                isDisabled: selectedCategoryID == nil
+                    || (Double(limitText.replacingOccurrences(of: ",", with: ".")) ?? 0) <= 0
+            ) {
+                save()
             }
         }
         .onAppear {

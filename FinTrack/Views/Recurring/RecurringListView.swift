@@ -54,6 +54,7 @@ struct RecurringListView: View {
                         }
                     }
                 }
+                .appGroupedList()
             }
         }
         .navigationTitle("Повторяющиеся")
@@ -171,12 +172,12 @@ struct RecurringEditorView: View {
         .navigationTitle(existing == nil ? "Новый платёж" : "Платёж")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Отмена") { dismiss() }
-            }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Сохранить") { save() }
-                    .disabled(selectedAccountID == nil || (Double(amountText.replacingOccurrences(of: ",", with: ".")) ?? 0) <= 0)
+            ModalCloseToolbarItem { dismiss() }
+            ModalConfirmToolbarItem(
+                isDisabled: selectedAccountID == nil
+                    || (Double(amountText.replacingOccurrences(of: ",", with: ".")) ?? 0) <= 0
+            ) {
+                save()
             }
         }
         .onAppear { load() }

@@ -7,16 +7,24 @@ struct HealthExpenseChart: View {
     var onOpenDetails: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @State private var animationProgress: Double = 0
 
     private let chartColor = SemanticIcon.flame
-    private let russian = Locale(identifier: "ru_RU")
-    private let calendar = Calendar.current
+    private let weekdayLabels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+
+    private var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "ru_RU")
+        calendar.firstWeekday = 2
+        return calendar
+    }
 
     private var weekPoints: [DailyAmountPoint] {
-        let endDay = calendar.startOfDay(for: Date.now)
-        guard let startDay = calendar.date(byAdding: .day, value: -6, to: endDay) else {
+        let today = calendar.startOfDay(for: Date.now)
+        guard let interval = calendar.dateInterval(of: .weekOfYear, for: today) else {
             return points
         }
+        let startDay = calendar.startOfDay(for: interval.start)
         let byDay = Dictionary(uniqueKeysWithValues: points.map {
             (calendar.startOfDay(for: $0.date), $0.amount)
         })
@@ -27,13 +35,18 @@ struct HealthExpenseChart: View {
         }
     }
 
+    private var elapsedWeekPoints: [DailyAmountPoint] {
+        let today = calendar.startOfDay(for: Date.now)
+        return weekPoints.filter { $0.date <= today }
+    }
+
     private var total: Double {
-        weekPoints.reduce(0) { $0 + $1.amount }
+        elapsedWeekPoints.reduce(0) { $0 + $1.amount }
     }
 
     private var average: Double {
-        guard !weekPoints.isEmpty else { return 0 }
-        return total / Double(weekPoints.count)
+        guard !elapsedWeekPoints.isEmpty else { return 0 }
+        return total / Double(elapsedWeekPoints.count)
     }
 
     private var hasExpenses: Bool { total > 0 }
@@ -43,8 +56,14 @@ struct HealthExpenseChart: View {
         return max(peak, average, 1) * 1.2
     }
 
-    private var barFill: Color {
-        colorScheme == .dark ? Color.white.opacity(0.34) : Color.black.opacity(0.18)
+    private var barFill: LinearGradient {
+        LinearGradient(
+            colors: colorScheme == .dark
+                ? [Color.white.opacity(0.52), Color.white.opacity(0.22)]
+                : [Color.black.opacity(0.08), Color.black.opacity(0.26)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
 
     var body: some View {
@@ -64,6 +83,7 @@ struct HealthExpenseChart: View {
                 chartRow
             }
         }
+        .chartAppearAnimation($animationProgress)
     }
 
     private var summaryText: some View {
@@ -74,7 +94,7 @@ struct HealthExpenseChart: View {
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("За последние 7 дней расходов не было.")
+                Text("На этой неделе расходов не было.")
                     .font(.body)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -84,7 +104,7 @@ struct HealthExpenseChart: View {
 
     private var summaryAttributed: AttributedString {
         let amount = CurrencyFormatter.string(amount: average, currencyCode: currencyCode)
-        var text = AttributedString("В среднем вы тратили \(amount) в день за последние 7 дней.")
+        var text = AttributedString("В среднем вы тратили \(amount) в день на этой неделе.")
         if let range = text.range(of: amount) {
             text[range].font = .body.weight(.semibold)
         }
@@ -112,7 +132,7 @@ struct HealthExpenseChart: View {
                 ForEach(weekPoints) { point in
                     BarMark(
                         x: .value("День", point.date, unit: .day),
-                        y: .value("Расход", visualAmount(for: point.amount)),
+                        y: .value("Расход", visualAmount(for: point.amount) * animationProgress),
                         width: .ratio(0.55)
                     )
                     .foregroundStyle(barFill)
@@ -120,9 +140,10 @@ struct HealthExpenseChart: View {
                 }
 
                 if hasExpenses {
-                    RuleMark(y: .value("Среднее", average))
+                    RuleMark(y: .value("Среднее", average * animationProgress))
                         .foregroundStyle(chartColor)
                         .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .opacity(animationProgress)
                 }
             }
             .chartYScale(domain: 0...yUpperBound)
@@ -132,7 +153,7 @@ struct HealthExpenseChart: View {
                 AxisMarks(values: weekPoints.map(\.date)) { value in
                     AxisValueLabel(centered: true) {
                         if let date = value.as(Date.self) {
-                            Text(weekdayLetter(for: date))
+                            Text(weekdayLabel(for: date))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -147,10 +168,9 @@ struct HealthExpenseChart: View {
         max(amount, yUpperBound * 0.07)
     }
 
-    private func weekdayLetter(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = russian
-        formatter.setLocalizedDateFormatFromTemplate("EEEEE")
-        return formatter.string(from: date)
+    private func weekdayLabel(for date: Date) -> String {
+        let weekday = calendar.component(.weekday, from: date)
+        let index = (weekday + 5) % 7
+        return weekdayLabels[index]
     }
 }

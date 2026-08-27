@@ -7,24 +7,26 @@ struct TransactionsView: View {
     @State private var showAdd = false
     @State private var editingTransaction: Transaction?
     @State private var isLoading = true
-    var embedded: Bool = false
+    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
-        Group {
-            if embedded {
-                configuredContent
-            } else {
-                NavigationStack {
-                    configuredContent
-                }
-            }
+        NavigationStack {
+            configuredContent
         }
     }
 
     private var configuredContent: some View {
         content
             .navigationTitle("Транзакции")
-            .searchable(text: $viewModel.searchText, prompt: "Заметка или сумма")
+            .scrollDismissesKeyboard(.immediately)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Готово") {
+                        dismissSearch()
+                    }
+                }
+            }
             .glassAddFAB(isVisible: !isLoading, accessibilityLabel: "Новая транзакция") {
                 showAdd = true
             }
@@ -40,9 +42,18 @@ struct TransactionsView: View {
                 reload()
             }
             .onChange(of: viewModel.searchText) { _, _ in reload() }
-            .onChange(of: viewModel.selectedAccountID) { _, _ in reload() }
-            .onChange(of: viewModel.selectedCategoryID) { _, _ in reload() }
-            .onChange(of: viewModel.period) { _, _ in reload() }
+            .onChange(of: viewModel.selectedAccountID) { _, _ in
+                dismissSearch()
+                reload()
+            }
+            .onChange(of: viewModel.selectedCategoryID) { _, _ in
+                dismissSearch()
+                reload()
+            }
+            .onChange(of: viewModel.period) { _, _ in
+                dismissSearch()
+                reload()
+            }
             .onChange(of: showAdd) { _, isPresented in
                 if !isPresented { reload() }
             }
@@ -53,9 +64,11 @@ struct TransactionsView: View {
 
     private var content: some View {
         VStack(spacing: 0) {
+            searchField
             filters
             if isLoading {
                 ListSkeleton(rows: 7)
+                    .onTapGesture { dismissSearch() }
             } else if viewModel.transactions.isEmpty {
                 EmptyStateView(
                     systemImage: "list.bullet.rectangle",
@@ -64,12 +77,14 @@ struct TransactionsView: View {
                     actionTitle: "Добавить",
                     action: { showAdd = true }
                 )
+                .onTapGesture { dismissSearch() }
             } else {
                 List {
                     ForEach(viewModel.groupedByDate, id: \.0) { date, items in
                         Section(date.formatted(date: .abbreviated, time: .omitted)) {
                             ForEach(items, id: \.id) { tx in
                                 Button {
+                                    dismissSearch()
                                     editingTransaction = tx
                                 } label: {
                                     TransactionRowView(
@@ -87,9 +102,43 @@ struct TransactionsView: View {
                         }
                     }
                 }
-                .listStyle(.insetGrouped)
+                .appGroupedList()
+                .scrollDismissesKeyboard(.immediately)
+                .simultaneousGesture(
+                    TapGesture().onEnded { dismissSearch() }
+                )
             }
         }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Заметка или сумма", text: $viewModel.searchText)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.done)
+                .focused($isSearchFocused)
+                .onSubmit { dismissSearch() }
+            if !viewModel.searchText.isEmpty {
+                Button {
+                    viewModel.searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Очистить")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 4)
     }
 
     private var filters: some View {
@@ -128,6 +177,10 @@ struct TransactionsView: View {
             .padding(.horizontal)
             .padding(.vertical, 8)
         }
+        .scrollDismissesKeyboard(.immediately)
+        .simultaneousGesture(
+            TapGesture().onEnded { dismissSearch() }
+        )
     }
 
     private func filterChip(title: String) -> some View {
@@ -137,6 +190,10 @@ struct TransactionsView: View {
             .padding(.vertical, 8)
             .background(Color.secondary.opacity(0.12))
             .clipShape(Capsule())
+    }
+
+    private func dismissSearch() {
+        isSearchFocused = false
     }
 
     private func reload() {

@@ -35,6 +35,15 @@ struct LogoutRequestDTO: Codable {
     let refreshToken: String
 }
 
+struct UpdateProfileRequestDTO: Codable {
+    let name: String?
+}
+
+struct ChangePasswordRequestDTO: Codable {
+    let currentPassword: String
+    let newPassword: String
+}
+
 struct APIErrorBody: Codable {
     let code: String?
     let message: String?

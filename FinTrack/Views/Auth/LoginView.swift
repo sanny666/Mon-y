@@ -25,9 +25,7 @@ struct LoginView: View {
             )
             .navigationTitle(mode == .register ? "Регистрация" : "Вход")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Закрыть") { dismiss() }
-                }
+                ModalCloseToolbarItem { dismiss() }
             }
         }
     }

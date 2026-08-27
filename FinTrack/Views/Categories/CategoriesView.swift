@@ -29,6 +29,7 @@ struct CategoriesView: View {
                         rootRows(viewModel.expenseRoots)
                     }
                 }
+                .appGroupedList()
             }
         }
         .navigationTitle("Категории")
@@ -184,12 +185,9 @@ struct CategoryEditorView: View {
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Отмена") { dismiss() }
-            }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Сохранить") { save() }
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+            ModalCloseToolbarItem { dismiss() }
+            ModalConfirmToolbarItem(isDisabled: name.trimmingCharacters(in: .whitespaces).isEmpty) {
+                save()
             }
         }
         .onAppear {

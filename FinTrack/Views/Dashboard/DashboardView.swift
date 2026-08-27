@@ -7,40 +7,51 @@ struct DashboardView: View {
     @State private var showAddTransaction = false
     @State private var path = NavigationPath()
     @State private var isLoading = true
+    var onOpenTransactions: () -> Void = {}
 
     var body: some View {
         NavigationStack(path: $path) {
             Group {
                 if isLoading {
-                    DashboardSkeleton()
+                    VStack(alignment: .leading, spacing: 16) {
+                        greetingHeader
+                            .padding(.horizontal, 16)
+                        DashboardSkeleton()
+                    }
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
-                            Text(Greeting.subtitle())
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .padding(.top, -4)
-                                .accessibilityHidden(true)
+                            greetingHeader
 
                             balanceCard
 
-                            IncomeExpenseDonutCard(
-                                title: "Сегодня",
-                                systemImage: "sun.max.fill",
-                                tint: SemanticIcon.today,
-                                income: viewModel.todayIncome,
-                                expense: viewModel.todayExpense,
-                                currencyCode: viewModel.currencyCode
-                            )
+                            LazyVGrid(
+                                columns: [
+                                    GridItem(.flexible(), spacing: 12),
+                                    GridItem(.flexible(), spacing: 12)
+                                ],
+                                spacing: 12
+                            ) {
+                                IncomeExpenseDonutCard(
+                                    title: "Сегодня",
+                                    systemImage: "sun.max.fill",
+                                    tint: SemanticIcon.today,
+                                    income: viewModel.todayIncome,
+                                    expense: viewModel.todayExpense,
+                                    currencyCode: viewModel.currencyCode,
+                                    compact: true
+                                )
 
-                            IncomeExpenseDonutCard(
-                                title: "Этот месяц",
-                                systemImage: "chart.pie.fill",
-                                tint: SemanticIcon.chart,
-                                income: viewModel.monthIncome,
-                                expense: viewModel.monthExpense,
-                                currencyCode: viewModel.currencyCode
-                            )
+                                IncomeExpenseDonutCard(
+                                    title: "Этот месяц",
+                                    systemImage: "chart.pie.fill",
+                                    tint: SemanticIcon.chart,
+                                    income: viewModel.monthIncome,
+                                    expense: viewModel.monthExpense,
+                                    currencyCode: viewModel.currencyCode,
+                                    compact: true
+                                )
+                            }
 
                             HealthExpenseChart(
                                 points: viewModel.expenseTrend,
@@ -57,8 +68,7 @@ struct DashboardView: View {
                 }
             }
             .background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle(Greeting.title())
-            .navigationBarTitleDisplayMode(.large)
+            .toolbar(path.isEmpty ? .hidden : .automatic, for: .navigationBar)
             .glassAddFAB(
                 isVisible: path.isEmpty && !isLoading,
                 accessibilityLabel: "Новая транзакция"
@@ -70,8 +80,6 @@ struct DashboardView: View {
             }
             .navigationDestination(for: String.self) { value in
                 switch value {
-                case "allTransactions":
-                    TransactionsView(embedded: true)
                 case "analytics":
                     AnalyticsView()
                 default:
@@ -89,9 +97,27 @@ struct DashboardView: View {
         }
     }
 
+    private var greetingHeader: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(Greeting.title())
+                    .font(.largeTitle.bold())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Spacer(minLength: 8)
+                ProfileButton(diameter: 34)
+            }
+            Text(Greeting.subtitle())
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
+        .padding(.top, 8)
+    }
+
     private var balanceCard: some View {
-        DashboardCard {
-            VStack(alignment: .leading, spacing: 6) {
+        DashboardCard(verticalPadding: 22) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("Общий баланс")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -100,6 +126,7 @@ struct DashboardView: View {
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
             }
+            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
@@ -114,7 +141,7 @@ struct DashboardView: View {
                     title: "Последние",
                     systemImage: "list.bullet.rectangle",
                     tint: SemanticIcon.list,
-                    action: { path.append("allTransactions") }
+                    action: onOpenTransactions
                 )
 
                 if viewModel.recentTransactions.isEmpty {

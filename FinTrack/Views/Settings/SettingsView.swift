@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @Environment(AppContainer.self) private var container
     @Environment(AppLockController.self) private var lockController
     @AppStorage(AppStorageKeys.defaultCurrency) private var defaultCurrency = AppCurrency.kzt.rawValue
     @AppStorage(AppStorageKeys.appTheme) private var appThemeRaw = AppTheme.system.rawValue
@@ -9,9 +8,6 @@ struct SettingsView: View {
     @AppStorage(AppStorageKeys.faceIDEnabled) private var faceIDEnabled = false
     @State private var showBiometryUnavailable = false
     @State private var biometryAlertMessage = ""
-    @State private var showExportEmpty = false
-    @State private var exportErrorMessage: String?
-    @State private var shareURL: URL?
     @State private var showChangePIN = false
     @State private var changePINPhase: ChangePINPhase = .verify
     @State private var changePINBuffer = ""
@@ -24,17 +20,6 @@ struct SettingsView: View {
         case confirm
     }
 
-    private var customAccentBinding: Binding<Color> {
-        Binding(
-            get: { Color(hex: appAccentHex) },
-            set: { newColor in
-                if let hex = newColor.toHexRGB() {
-                    appAccentHex = hex
-                }
-            }
-        )
-    }
-
     private var faceIDBinding: Binding<Bool> {
         Binding(
             get: { faceIDEnabled },
@@ -45,39 +30,75 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        settingsForm
+        Form {
+            Section("Основные") {
+                Picker("Валюта по умолчанию", selection: $defaultCurrency) {
+                    ForEach(AppCurrency.allCases) { currency in
+                        Text(currency.title).tag(currency.rawValue)
+                    }
+                }
+            }
+
+            Section("Оформление") {
+                Picker("Тема", selection: $appThemeRaw) {
+                    ForEach(AppTheme.allCases) { theme in
+                        Text(theme.title).tag(theme.rawValue)
+                    }
+                }
+
+                NavigationLink {
+                    AccentPickerView()
+                } label: {
+                    HStack {
+                        Text("Цвет акцента")
+                        Spacer()
+                        Circle()
+                            .fill(Color(hex: appAccentHex))
+                            .frame(width: 22, height: 22)
+                            .overlay {
+                                Circle()
+                                    .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
+                            }
+                        Text(AppAccent.preset(forHex: appAccentHex)?.name ?? "Свой")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Section {
+                LabeledContent("PIN-код", value: lockController.hasPIN ? "Установлен" : "Не задан")
+                Button("Сменить PIN") {
+                    resetChangePIN()
+                    showChangePIN = true
+                }
+                .disabled(!lockController.hasPIN)
+
+                if lockController.isBiometryAvailable {
+                    Toggle("Разблокировка через \(lockController.biometryTitle)", isOn: faceIDBinding)
+                } else {
+                    Text("Биометрия недоступна — используйте PIN.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Безопасность")
+            } footer: {
+                if lockController.isBiometryAvailable {
+                    Text("PIN обязателен. \(lockController.biometryTitle) — быстрый вход поверх PIN.")
+                }
+            }
+
+            Section {
+                Text("monёy")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .appGroupedList()
         .navigationTitle("Настройки")
         .alert("Биометрия недоступна", isPresented: $showBiometryUnavailable) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(biometryAlertMessage)
-        }
-        .alert("Нет данных", isPresented: $showExportEmpty) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Нет транзакций для экспорта.")
-        }
-        .alert(
-            "Ошибка экспорта",
-            isPresented: Binding(
-                get: { exportErrorMessage != nil },
-                set: { if !$0 { exportErrorMessage = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(exportErrorMessage ?? "")
-        }
-        .sheet(isPresented: Binding(
-            get: { shareURL != nil },
-            set: { if !$0 { shareURL = nil } }
-        )) {
-            if let shareURL {
-                ActivityShareSheet(items: [shareURL]) {
-                    self.shareURL = nil
-                }
-                .presentationDetents([.medium, .large])
-            }
         }
         .sheet(isPresented: $showChangePIN) {
             NavigationStack {
@@ -97,114 +118,10 @@ struct SettingsView: View {
                 .navigationTitle("Смена PIN")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Отмена") { showChangePIN = false }
-                    }
+                    ModalCloseToolbarItem { showChangePIN = false }
                 }
             }
             .presentationDetents([.large])
-        }
-    }
-
-    private var settingsForm: some View {
-        Form {
-            Section("Основные") {
-                Picker("Валюта по умолчанию", selection: $defaultCurrency) {
-                    ForEach(AppCurrency.allCases) { currency in
-                        Text(currency.title).tag(currency.rawValue)
-                    }
-                }
-            }
-
-            Section("Оформление") {
-                Picker("Тема", selection: $appThemeRaw) {
-                    ForEach(AppTheme.allCases) { theme in
-                        Text(theme.title).tag(theme.rawValue)
-                    }
-                }
-
-                ForEach(AppAccentGroup.allCases) { group in
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(group.rawValue)
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        LazyVGrid(
-                            columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 6),
-                            spacing: 10
-                        ) {
-                            ForEach(AppAccent.presets(in: group)) { preset in
-                                accentSwatch(preset)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                }
-
-                ColorPicker("Свой цвет", selection: customAccentBinding, supportsOpacity: false)
-
-                if let selected = AppAccent.preset(forHex: appAccentHex) {
-                    LabeledContent("Выбрано", value: selected.name)
-                } else {
-                    LabeledContent("Выбрано", value: appAccentHex)
-                }
-            }
-
-            Section("Аккаунт") {
-                if let banner = container.authBannerMessage {
-                    Text(banner)
-                        .font(.footnote)
-                        .foregroundStyle(.orange)
-                }
-                LabeledContent("Email", value: container.authManager.userEmail ?? "—")
-                syncStatusRow
-                Button {
-                    Task { await container.performSync() }
-                } label: {
-                    Label("Синхронизировать", systemImage: "arrow.triangle.2.circlepath")
-                }
-                .disabled({
-                    if case .syncing = container.syncStatus { return true }
-                    return !container.isLoggedIn
-                }())
-                Button("Выйти", role: .destructive) {
-                    Task { await container.logout() }
-                }
-            }
-
-            Section("Безопасность") {
-                LabeledContent("PIN-код", value: lockController.hasPIN ? "Установлен" : "Не задан")
-                Button("Сменить PIN") {
-                    resetChangePIN()
-                    showChangePIN = true
-                }
-                .disabled(!lockController.hasPIN)
-
-                if lockController.isBiometryAvailable {
-                    Toggle("Разблокировка через \(lockController.biometryTitle)", isOn: faceIDBinding)
-                    Text("PIN обязателен. \(lockController.biometryTitle) — быстрый вход поверх PIN.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("Биометрия недоступна — используйте PIN.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Section("Данные") {
-                Button("Экспорт CSV") {
-                    exportCSV()
-                }
-            }
-
-            Section {
-                Text("monёy MVP")
-                    .foregroundStyle(.secondary)
-                Text(AppConfig.baseURL.absoluteString)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
         }
     }
 
@@ -284,21 +201,82 @@ struct SettingsView: View {
             guard ok else { return }
             faceIDEnabled = true
         } else {
-            // Confirm with PIN via temporary pad would be heavier; biometrics or just allow off.
             faceIDEnabled = false
         }
     }
+}
 
-    private func exportCSV() {
-        do {
-            let transactions = try container.transactions.fetchAll()
-            let result = try CSVExportService.export(transactions: transactions)
-            shareURL = result.fileURL
-        } catch CSVExportService.ExportError.noTransactions {
-            showExportEmpty = true
-        } catch {
-            exportErrorMessage = error.localizedDescription
+struct AccentPickerView: View {
+    @AppStorage(AppStorageKeys.appAccentHex) private var appAccentHex = AppAccent.defaultHex
+    @State private var expandedGroup: AppAccentGroup?
+
+    private var customAccentBinding: Binding<Color> {
+        Binding(
+            get: { Color(hex: appAccentHex) },
+            set: { newColor in
+                if let hex = newColor.toHexRGB() {
+                    appAccentHex = hex
+                }
+            }
+        )
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                HStack(spacing: 12) {
+                    Circle()
+                        .fill(Color(hex: appAccentHex))
+                        .frame(width: 28, height: 28)
+                        .overlay {
+                            Circle()
+                                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
+                        }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(AppAccent.preset(forHex: appAccentHex)?.name ?? "Свой цвет")
+                        Text(appAccentHex)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                ColorPicker("Свой цвет", selection: customAccentBinding, supportsOpacity: false)
+            }
+
+            ForEach(AppAccentGroup.allCases) { group in
+                DisclosureGroup(
+                    isExpanded: expansionBinding(for: group)
+                ) {
+                    LazyVGrid(
+                        columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 6),
+                        spacing: 10
+                    ) {
+                        ForEach(AppAccent.presets(in: group)) { preset in
+                            accentSwatch(preset)
+                        }
+                    }
+                    .padding(.vertical, 6)
+                } label: {
+                    Text(group.rawValue)
+                }
+            }
         }
+        .appGroupedList()
+        .navigationTitle("Цвет акцента")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if expandedGroup == nil {
+                expandedGroup = AppAccent.preset(forHex: appAccentHex)?.group
+            }
+        }
+    }
+
+    private func expansionBinding(for group: AppAccentGroup) -> Binding<Bool> {
+        Binding(
+            get: { expandedGroup == group },
+            set: { isExpanded in
+                expandedGroup = isExpanded ? group : nil
+            }
+        )
     }
 
     private func accentSwatch(_ preset: AppAccentPreset) -> some View {
@@ -324,30 +302,5 @@ struct SettingsView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(preset.name)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-
-    @ViewBuilder
-    private var syncStatusRow: some View {
-        HStack {
-            Text("Статус")
-            Spacer()
-            switch container.syncStatus {
-            case .idle:
-                Text("Ожидание").foregroundStyle(.secondary)
-            case .syncing:
-                Label("Синхронизация…", systemImage: "arrow.triangle.2.circlepath")
-                    .foregroundStyle(.secondary)
-            case .success(let date):
-                Label("OK · \(date.formatted(date: .omitted, time: .shortened))", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .labelStyle(.titleAndIcon)
-            case .error(let message):
-                Label(message, systemImage: message == "Нет сети" || message.contains("Таймаут")
-                      ? "wifi.slash"
-                      : "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                    .lineLimit(1)
-            }
-        }
     }
 }
