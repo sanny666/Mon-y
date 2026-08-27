@@ -23,6 +23,7 @@ enum FreshInstall {
         try? keychain.delete("auth.accessToken")
         try? keychain.delete("auth.refreshToken")
         try? keychain.delete("auth.userEmail")
+        try? keychain.delete("auth.userName")
         try? keychain.delete("appLockPIN")
         WidgetSnapshotStore.clear()
 
@@ -110,12 +111,19 @@ enum IconPalette {
     ]
 }
 
-/// Semantic tints for dashboard section icons (meaning-based, not accent).
+/// Semantic tints for icons (meaning-based, not the app accent).
 enum SemanticIcon {
     static let chart = Color(hex: "#2F6FED")
     static let today = Color(hex: "#F5A524")
     static let flame = Color(hex: "#FF6B00")
     static let list = Color(hex: "#5C6BC0")
+    static let tag = Color(hex: "#C45C26")
+    static let budget = Color(hex: "#8E44AD")
+    static let recurring = Color(hex: "#1ABC9C")
+    static let goal = Color(hex: "#268F6B")
+    static let export = Color(hex: "#5C6BC0")
+    static let bank = Color(hex: "#2F6FED")
+    static let settings = Color(hex: "#8E8E93")
 }
 
 /// Local file helpers for receipt photos until remote upload is wired.
