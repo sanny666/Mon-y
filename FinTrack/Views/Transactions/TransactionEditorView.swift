@@ -7,6 +7,8 @@ struct TransactionEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     let transaction: Transaction?
+    var initialJPEG: Data? = nil
+    var initialNote: String? = nil
 
     @State private var amountText = ""
     @State private var type: TransactionType = .expense
@@ -105,39 +107,8 @@ struct TransactionEditorView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if #available(iOS 26.0, *) {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button(role: .close) {
-                            dismiss()
-                        }
-                        .tint(.red)
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button(role: .confirm) {
-                            save()
-                        }
-                        .disabled(!canSave)
-                    }
-                } else {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "xmark")
-                        }
-                        .tint(.red)
-                        .accessibilityLabel("Закрыть")
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button {
-                            save()
-                        } label: {
-                            Image(systemName: "checkmark")
-                        }
-                        .disabled(!canSave)
-                        .accessibilityLabel("Сохранить")
-                    }
-                }
+                ModalCloseToolbarItem { dismiss() }
+                ModalConfirmToolbarItem(isDisabled: !canSave) { save() }
                 ToolbarItem(placement: .principal) {
                     typeSlider
                 }
@@ -313,6 +284,14 @@ struct TransactionEditorView: View {
             } else {
                 selectedAccountID = accounts.first?.id
                 selectedRootCategoryID = filteredRoots.first?.id
+                if let initialJPEG, let image = UIImage(data: initialJPEG) {
+                    pendingJPEG = initialJPEG
+                    attachmentPreview = image
+                    Task { await applyOCR(from: initialJPEG) }
+                }
+                if let initialNote, note.isEmpty {
+                    note = initialNote
+                }
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -336,9 +315,44 @@ struct TransactionEditorView: View {
                let jpeg = image.jpegData(compressionQuality: 0.8) {
                 pendingJPEG = jpeg
                 attachmentPreview = image
+                await applyOCR(from: jpeg)
             }
         } catch {
             errorMessage = "Не удалось загрузить фото"
+        }
+    }
+
+    @MainActor
+    private func applyOCR(from jpeg: Data) async {
+        let result = await ReceiptOCR.recognize(jpeg: jpeg)
+        if amountText.isEmpty, let amount = result.amount, amount > 0 {
+            // Always use dot decimals for the amount field — never date-like formatting.
+            if abs(amount.rounded() - amount) < 0.001 {
+                amountText = String(Int(amount.rounded()))
+            } else {
+                amountText = String(format: "%.2f", amount)
+            }
+        }
+        if let date = result.date {
+            self.date = date
+        }
+        // Only fill note from OCR merchant text — never from amount/date leftovers.
+        if note.isEmpty, let merchant = result.note, !merchant.isEmpty {
+            note = merchant
+        }
+        if let category = BankStatementParser.matchCategory(
+            note: note,
+            hint: result.note ?? "",
+            type: type,
+            categories: rootCategories.flatMap { [$0] + $0.children }
+        ) {
+            if let parent = category.parent {
+                selectedRootCategoryID = parent.id
+                selectedSubcategoryID = category.id
+            } else {
+                selectedRootCategoryID = category.id
+                selectedSubcategoryID = nil
+            }
         }
     }
 

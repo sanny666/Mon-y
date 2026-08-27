@@ -39,10 +39,14 @@ struct RootView: View {
     @AppStorage(AppStorageKeys.appAccentHex) private var appAccentHex = AppAccent.defaultHex
     @AppStorage(AppStorageKeys.faceIDEnabled) private var faceIDEnabled = false
     @State private var appContainer: AppContainer?
+    @State private var chartEntrance = ChartEntranceController()
     @State private var lockController = AppLockController()
     @State private var showPrivacyCover = false
     @State private var showAddTransaction = false
     @State private var pendingAddTransaction = false
+    @State private var isQuickAddFromDeepLink = false
+    @State private var pendingReceiptJPEG: Data?
+    @State private var pendingReceiptNote: String?
 
     private var preferredScheme: ColorScheme? {
         switch AppTheme(rawValue: appThemeRaw) ?? .system {
@@ -57,6 +61,11 @@ struct RootView: View {
         lockController.hasPIN
             && hasCompletedOnboarding
             && (appContainer?.isLoggedIn ?? false)
+    }
+
+    /// Action Button / Control deep link — skip Face ID / PIN until the editor dismisses.
+    private var isQuickAddActive: Bool {
+        isQuickAddFromDeepLink || pendingAddTransaction
     }
 
     var body: some View {
@@ -74,18 +83,20 @@ struct RootView: View {
                         container.processDueRecurring()
                         container.publishWidgetSnapshot()
                         appContainer = container
-                        if lockController.hasPIN && hasCompletedOnboarding && container.isLoggedIn {
+                        if lockController.hasPIN && hasCompletedOnboarding && container.isLoggedIn,
+                           !isQuickAddActive {
                             lockController.lockIfNeeded(enabled: true)
                             Task { await attemptBiometricUnlock() }
                         }
-                        presentAddTransactionIfPossible()
+                        consumeQuickAddIfNeeded()
                     }
             }
         }
+        .environment(chartEntrance)
         .preferredColorScheme(preferredScheme)
         .tint(Color(hex: appAccentHex))
         .overlay {
-            if shouldGateWithLock, lockController.isLocked {
+            if shouldGateWithLock, lockController.isLocked, !isQuickAddActive {
                 AppLockView(
                     lockController: lockController,
                     faceIDEnabled: faceIDEnabled
@@ -102,16 +113,48 @@ struct RootView: View {
                     .zIndex(3)
             }
         }
-        .onChange(of: scenePhase) { _, phase in
+        .fullScreenCover(isPresented: $showAddTransaction, onDismiss: {
+            isQuickAddFromDeepLink = false
+            pendingReceiptJPEG = nil
+            pendingReceiptNote = nil
+        }) {
+            if let appContainer {
+                TransactionEditorView(
+                    transaction: nil,
+                    initialJPEG: pendingReceiptJPEG,
+                    initialNote: pendingReceiptNote
+                )
+                    .environment(appContainer)
+                    .environment(lockController)
+                    .preferredColorScheme(preferredScheme)
+                    .tint(Color(hex: appAccentHex))
+            }
+        }
+        .onAppear {
+            if scenePhase == .active, chartEntrance.generation == 0 {
+                chartEntrance.markAppBecameActive()
+            }
+        }
+        .onChange(of: scenePhase) { oldPhase, phase in
+            if phase == .active, oldPhase == .background {
+                chartEntrance.markAppBecameActive()
+            }
             handleScenePhase(phase)
         }
         .onChange(of: lockController.isLocked) { _, _ in
             presentAddTransactionIfPossible()
         }
+        .onReceive(NotificationCenter.default.publisher(for: QuickAddFlag.didRequestNotification)) { _ in
+            requestQuickAddFromBridge()
+        }
         .onOpenURL { url in
+            if url.isFileURL {
+                try? ReceiptInbox.ingestFile(at: url)
+                requestQuickAddFromBridge(consumeFlag: false)
+                return
+            }
             guard MonyDeepLink.isAddTransaction(url) else { return }
-            pendingAddTransaction = true
-            presentAddTransactionIfPossible()
+            requestQuickAddFromBridge(consumeFlag: false)
         }
     }
 
@@ -128,9 +171,6 @@ struct RootView: View {
             }
         } else if loggedIn && hasCompletedOnboarding {
             MainTabView()
-                .sheet(isPresented: $showAddTransaction) {
-                    TransactionEditorView(transaction: nil)
-                }
         } else if loggedIn && !hasCompletedOnboarding {
             OnboardingView(entryMode: .setupOnly) {
                 hasCompletedOnboarding = true
@@ -152,12 +192,13 @@ struct RootView: View {
         case .active:
             showPrivacyCover = false
             appContainer?.handleSceneBecameActive()
-            if shouldGateWithLock, lockController.isLocked {
+            consumeQuickAddIfNeeded()
+            if shouldGateWithLock, lockController.isLocked, !isQuickAddActive {
                 Task { await attemptBiometricUnlock() }
             }
             presentAddTransactionIfPossible()
         case .inactive:
-            if shouldGateWithLock {
+            if shouldGateWithLock, !isQuickAddActive {
                 showPrivacyCover = true
             }
         case .background:
@@ -171,16 +212,37 @@ struct RootView: View {
     }
 
     private func attemptBiometricUnlock() async {
-        guard faceIDEnabled else { return }
+        guard faceIDEnabled, !isQuickAddActive else { return }
         _ = await lockController.authenticateWithBiometrics()
+        presentAddTransactionIfPossible()
+    }
+
+    /// Action Button / Control writes a shared keychain flag; share extension writes a receipt + flag.
+    private func consumeQuickAddIfNeeded() {
+        let flagged = QuickAddFlag.consumePending()
+        guard flagged || ReceiptInbox.hasPending else { return }
+        requestQuickAddFromBridge(consumeFlag: false)
+    }
+
+    private func requestQuickAddFromBridge(consumeFlag: Bool = true) {
+        if consumeFlag {
+            _ = QuickAddFlag.consumePending()
+        }
+        isQuickAddFromDeepLink = true
+        pendingAddTransaction = true
         presentAddTransactionIfPossible()
     }
 
     private func presentAddTransactionIfPossible() {
         guard pendingAddTransaction else { return }
         guard hasCompletedOnboarding, appContainer?.isLoggedIn == true else { return }
-        if shouldGateWithLock, lockController.isLocked { return }
+        // Deep-link / Action Button: open editor immediately without Face ID / PIN.
+        lockController.unlockWithoutAuth()
         pendingAddTransaction = false
+        if let receipt = ReceiptInbox.consume() {
+            pendingReceiptJPEG = receipt.jpeg
+            pendingReceiptNote = receipt.note
+        }
         showAddTransaction = true
     }
 }

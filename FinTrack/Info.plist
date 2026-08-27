@@ -46,5 +46,24 @@
 	<string>monёy использует Face ID, чтобы защитить доступ к финансам.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>monёy использует фото для вложений к транзакциям (чеки).</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Чек</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.image</string>
+				<string>public.jpeg</string>
+				<string>public.png</string>
+				<string>public.heic</string>
+				<string>com.adobe.pdf</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
 </dict>
 </plist>
