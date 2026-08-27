@@ -6,6 +6,7 @@ struct TransactionsView: View {
     @State private var viewModel = TransactionsViewModel()
     @State private var showAdd = false
     @State private var editingTransaction: Transaction?
+    @State private var isLoading = true
     var embedded: Bool = false
 
     var body: some View {
@@ -24,14 +25,20 @@ struct TransactionsView: View {
         content
             .navigationTitle("Транзакции")
             .searchable(text: $viewModel.searchText, prompt: "Заметка или сумма")
+            .glassAddFAB(isVisible: !isLoading, accessibilityLabel: "Новая транзакция") {
+                showAdd = true
+            }
             .sheet(isPresented: $showAdd) {
                 TransactionEditorView(transaction: nil)
             }
             .sheet(item: $editingTransaction) { tx in
                 TransactionEditorView(transaction: tx)
             }
-            .onAppear { reload() }
-            .onChange(of: container.refreshToken) { _, _ in reload() }
+            .onAppear { FirstLoad.finish($isLoading, reload) }
+            .onChange(of: container.refreshToken) { _, _ in
+                guard !isLoading else { return }
+                reload()
+            }
             .onChange(of: viewModel.searchText) { _, _ in reload() }
             .onChange(of: viewModel.selectedAccountID) { _, _ in reload() }
             .onChange(of: viewModel.selectedCategoryID) { _, _ in reload() }
@@ -47,7 +54,9 @@ struct TransactionsView: View {
     private var content: some View {
         VStack(spacing: 0) {
             filters
-            if viewModel.transactions.isEmpty {
+            if isLoading {
+                ListSkeleton(rows: 7)
+            } else if viewModel.transactions.isEmpty {
                 EmptyStateView(
                     systemImage: "list.bullet.rectangle",
                     title: "Нет транзакций",

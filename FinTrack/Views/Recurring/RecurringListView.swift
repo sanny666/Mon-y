@@ -6,10 +6,13 @@ struct RecurringListView: View {
     @State private var viewModel = RecurringViewModel()
     @State private var showAdd = false
     @State private var editingItem: RecurringTransaction?
+    @State private var isLoading = true
 
     var body: some View {
         Group {
-            if viewModel.items.isEmpty {
+            if isLoading {
+                ListSkeleton(rows: 5)
+            } else if viewModel.items.isEmpty {
                 EmptyStateView(
                     systemImage: "arrow.clockwise",
                     title: "Нет повторяющихся платежей",
@@ -54,10 +57,8 @@ struct RecurringListView: View {
             }
         }
         .navigationTitle("Повторяющиеся")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showAdd = true } label: { Image(systemName: "plus") }
-            }
+        .glassAddFAB(isVisible: !isLoading, accessibilityLabel: "Новый платёж") {
+            showAdd = true
         }
         .sheet(isPresented: $showAdd) {
             NavigationStack { RecurringEditorView() }
@@ -71,10 +72,15 @@ struct RecurringListView: View {
             }
         }
         .onAppear {
-            viewModel.reload(container: container)
-            container.processDueRecurring()
+            FirstLoad.finish($isLoading) {
+                viewModel.reload(container: container)
+                container.processDueRecurring()
+            }
         }
-        .onChange(of: container.refreshToken) { _, _ in viewModel.reload(container: container) }
+        .onChange(of: container.refreshToken) { _, _ in
+            guard !isLoading else { return }
+            viewModel.reload(container: container)
+        }
         .onChange(of: showAdd) { _, isPresented in
             if !isPresented { viewModel.reload(container: container) }
         }

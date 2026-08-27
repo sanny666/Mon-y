@@ -6,10 +6,13 @@ struct CategoriesView: View {
     @State private var showAddRoot = false
     @State private var editing: Category?
     @State private var parentForNewSubcategory: Category?
+    @State private var isLoading = true
 
     var body: some View {
         Group {
-            if viewModel.categories.isEmpty {
+            if isLoading {
+                ListSkeleton(rows: 8, kind: .category)
+            } else if viewModel.categories.isEmpty {
                 EmptyStateView(
                     systemImage: "tag",
                     title: "Нет категорий",
@@ -29,10 +32,8 @@ struct CategoriesView: View {
             }
         }
         .navigationTitle("Категории")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showAddRoot = true } label: { Image(systemName: "plus") }
-            }
+        .glassAddFAB(isVisible: !isLoading, accessibilityLabel: "Новая категория") {
+            showAddRoot = true
         }
         .sheet(isPresented: $showAddRoot) {
             NavigationStack {
@@ -49,8 +50,11 @@ struct CategoriesView: View {
                 CategoryEditorView(category: nil, parent: parent)
             }
         }
-        .onAppear { viewModel.reload(container: container) }
-        .onChange(of: container.refreshToken) { _, _ in viewModel.reload(container: container) }
+        .onAppear { FirstLoad.finish($isLoading) { viewModel.reload(container: container) } }
+        .onChange(of: container.refreshToken) { _, _ in
+            guard !isLoading else { return }
+            viewModel.reload(container: container)
+        }
         .onChange(of: showAddRoot) { _, isPresented in
             if !isPresented { viewModel.reload(container: container) }
         }

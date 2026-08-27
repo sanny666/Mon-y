@@ -6,10 +6,13 @@ struct GoalsView: View {
     @State private var viewModel = GoalsViewModel()
     @State private var showAdd = false
     @State private var editing: Goal?
+    @State private var isLoading = true
 
     var body: some View {
         Group {
-            if viewModel.goals.isEmpty {
+            if isLoading {
+                ListSkeleton(rows: 4, kind: .progress)
+            } else if viewModel.goals.isEmpty {
                 EmptyStateView(
                     systemImage: "flag",
                     title: "Нет целей",
@@ -50,10 +53,8 @@ struct GoalsView: View {
             }
         }
         .navigationTitle("Цели")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showAdd = true } label: { Image(systemName: "plus") }
-            }
+        .glassAddFAB(isVisible: !isLoading, accessibilityLabel: "Новая цель") {
+            showAdd = true
         }
         .sheet(isPresented: $showAdd) {
             NavigationStack { GoalEditorView(goal: nil) }
@@ -61,8 +62,11 @@ struct GoalsView: View {
         .sheet(item: $editing) { goal in
             NavigationStack { GoalEditorView(goal: goal) }
         }
-        .onAppear { viewModel.reload(container: container) }
-        .onChange(of: container.refreshToken) { _, _ in viewModel.reload(container: container) }
+        .onAppear { FirstLoad.finish($isLoading) { viewModel.reload(container: container) } }
+        .onChange(of: container.refreshToken) { _, _ in
+            guard !isLoading else { return }
+            viewModel.reload(container: container)
+        }
         .onChange(of: showAdd) { _, isPresented in
             if !isPresented { viewModel.reload(container: container) }
         }

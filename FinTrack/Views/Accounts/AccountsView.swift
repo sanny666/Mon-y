@@ -6,11 +6,14 @@ struct AccountsView: View {
     @State private var showAdd = false
     @State private var accountToDelete: Account?
     @State private var path = NavigationPath()
+    @State private var isLoading = true
 
     var body: some View {
         NavigationStack(path: $path) {
             Group {
-                if viewModel.accounts.isEmpty {
+                if isLoading {
+                    ListSkeleton(rows: 5)
+                } else if viewModel.accounts.isEmpty {
                     EmptyStateView(
                         systemImage: "creditcard",
                         title: "Нет счетов",
@@ -53,10 +56,11 @@ struct AccountsView: View {
                 }
             }
             .navigationTitle("Счета")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showAdd = true } label: { Image(systemName: "plus") }
-                }
+            .glassAddFAB(
+                isVisible: path.isEmpty && !isLoading,
+                accessibilityLabel: "Новый счёт"
+            ) {
+                showAdd = true
             }
             .navigationDestination(for: UUID.self) { id in
                 if let account = viewModel.accounts.first(where: { $0.id == id }) {
@@ -88,8 +92,11 @@ struct AccountsView: View {
             } message: {
                 Text("Удалятся все связанные транзакции.")
             }
-            .onAppear { viewModel.reload(container: container) }
-            .onChange(of: container.refreshToken) { _, _ in viewModel.reload(container: container) }
+            .onAppear { FirstLoad.finish($isLoading) { viewModel.reload(container: container) } }
+            .onChange(of: container.refreshToken) { _, _ in
+                guard !isLoading else { return }
+                viewModel.reload(container: container)
+            }
             .onChange(of: showAdd) { _, isPresented in
                 if !isPresented { viewModel.reload(container: container) }
             }
@@ -103,26 +110,33 @@ struct AccountDetailView: View {
     @State private var transactions: [Transaction] = []
     @State private var balance: Double = 0
     @State private var showEdit = false
+    @State private var isLoading = true
 
     var body: some View {
-        List {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(CurrencyFormatter.string(amount: balance, currencyCode: account.currency))
-                        .font(.largeTitle.bold())
-                    Text("\(account.type.title) · \(account.currency)")
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 4)
-            }
+        Group {
+            if isLoading {
+                AccountDetailSkeleton()
+            } else {
+                List {
+                    Section {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(CurrencyFormatter.string(amount: balance, currencyCode: account.currency))
+                                .font(.largeTitle.bold())
+                            Text("\(account.type.title) · \(account.currency)")
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
 
-            Section("История") {
-                if transactions.isEmpty {
-                    Text("Нет транзакций по этому счёту")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(transactions, id: \.id) { tx in
-                        TransactionRowView(transaction: tx, currencyCode: account.currency)
+                    Section("История") {
+                        if transactions.isEmpty {
+                            Text("Нет транзакций по этому счёту")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(transactions, id: \.id) { tx in
+                                TransactionRowView(transaction: tx, currencyCode: account.currency)
+                            }
+                        }
                     }
                 }
             }
@@ -130,7 +144,9 @@ struct AccountDetailView: View {
         .navigationTitle(account.name)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Изменить") { showEdit = true }
+                if !isLoading {
+                    Button("Изменить") { showEdit = true }
+                }
             }
         }
         .sheet(isPresented: $showEdit) {
@@ -138,8 +154,11 @@ struct AccountDetailView: View {
                 AccountEditorView(account: account)
             }
         }
-        .onAppear(perform: reload)
-        .onChange(of: container.refreshToken) { _, _ in reload() }
+        .onAppear { FirstLoad.finish($isLoading, reload) }
+        .onChange(of: container.refreshToken) { _, _ in
+            guard !isLoading else { return }
+            reload()
+        }
         .onChange(of: showEdit) { _, isPresented in
             if !isPresented { reload() }
         }

@@ -7,6 +7,8 @@ final class DashboardViewModel {
     var totalBalance: Double = 0
     var monthIncome: Double = 0
     var monthExpense: Double = 0
+    var todayIncome: Double = 0
+    var todayExpense: Double = 0
     var recentTransactions: [Transaction] = []
     var expenseTrend: [DailyAmountPoint] = []
     var currencyCode: String = AppCurrency.kzt.rawValue
@@ -19,7 +21,9 @@ final class DashboardViewModel {
             totalBalance = container.balanceService.totalBalance(accounts: accounts)
             monthIncome = container.balanceService.monthIncome(transactions: transactions)
             monthExpense = container.balanceService.monthExpense(transactions: transactions)
-            expenseTrend = container.analyticsService.dailyExpenses(transactions: transactions, days: 30)
+            todayIncome = container.balanceService.dayIncome(transactions: transactions)
+            todayExpense = container.balanceService.dayExpense(transactions: transactions)
+            expenseTrend = container.analyticsService.dailyExpenses(transactions: transactions, days: 7)
             recentTransactions = try container.transactions.fetchRecent(limit: 5)
             currencyCode = accounts.first?.currency ?? defaultCurrency
             errorMessage = nil

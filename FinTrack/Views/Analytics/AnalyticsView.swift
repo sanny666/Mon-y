@@ -5,27 +5,37 @@ struct AnalyticsView: View {
     @Environment(AppContainer.self) private var container
     @AppStorage(AppStorageKeys.defaultCurrency) private var defaultCurrency = AppCurrency.kzt.rawValue
     @State private var viewModel = AnalyticsViewModel()
+    @State private var isLoading = true
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                Picker("Период", selection: $viewModel.period) {
-                    ForEach(AnalyticsPeriod.allCases) { period in
-                        Text(period.title).tag(period)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: viewModel.period) { _, _ in reload() }
+        Group {
+            if isLoading {
+                AnalyticsSkeleton()
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        Picker("Период", selection: $viewModel.period) {
+                            ForEach(AnalyticsPeriod.allCases) { period in
+                                Text(period.title).tag(period)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: viewModel.period) { _, _ in reload() }
 
-                categorySection
-                monthComparisonSection
-                balanceSection
+                        categorySection
+                        monthComparisonSection
+                        balanceSection
+                    }
+                    .padding()
+                }
             }
-            .padding()
         }
         .navigationTitle("Аналитика")
-        .onAppear { reload() }
-        .onChange(of: container.refreshToken) { _, _ in reload() }
+        .onAppear { FirstLoad.finish($isLoading, reload) }
+        .onChange(of: container.refreshToken) { _, _ in
+            guard !isLoading else { return }
+            reload()
+        }
     }
 
     private var categorySection: some View {

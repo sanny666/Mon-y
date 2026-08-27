@@ -5,10 +5,13 @@ struct BudgetsView: View {
     @AppStorage(AppStorageKeys.defaultCurrency) private var defaultCurrency = AppCurrency.kzt.rawValue
     @State private var viewModel = BudgetsViewModel()
     @State private var showAdd = false
+    @State private var isLoading = true
 
     var body: some View {
         Group {
-            if viewModel.budgets.isEmpty {
+            if isLoading {
+                ListSkeleton(rows: 4, kind: .progress)
+            } else if viewModel.budgets.isEmpty {
                 EmptyStateView(
                     systemImage: "chart.pie",
                     title: "Нет бюджетов",
@@ -44,16 +47,17 @@ struct BudgetsView: View {
             }
         }
         .navigationTitle("Бюджеты")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showAdd = true } label: { Image(systemName: "plus") }
-            }
+        .glassAddFAB(isVisible: !isLoading, accessibilityLabel: "Новый бюджет") {
+            showAdd = true
         }
         .sheet(isPresented: $showAdd) {
             NavigationStack { BudgetEditorView() }
         }
-        .onAppear { viewModel.reload(container: container) }
-        .onChange(of: container.refreshToken) { _, _ in viewModel.reload(container: container) }
+        .onAppear { FirstLoad.finish($isLoading) { viewModel.reload(container: container) } }
+        .onChange(of: container.refreshToken) { _, _ in
+            guard !isLoading else { return }
+            viewModel.reload(container: container)
+        }
         .onChange(of: showAdd) { _, isPresented in
             if !isPresented { viewModel.reload(container: container) }
         }
