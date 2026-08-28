@@ -3,10 +3,32 @@ import SwiftUI
 
 @main
 struct FinTrackApp: App {
-    private let container: ModelContainer
+    @State private var modelContainer: ModelContainer?
 
     init() {
         FreshInstall.resetStaleSecretsIfNeeded()
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            Group {
+                if let modelContainer {
+                    RootView()
+                        .modelContainer(modelContainer)
+                } else {
+                    DashboardSkeleton()
+                        .task(priority: .userInitiated) {
+                            let container = await Task.detached(priority: .userInitiated) {
+                                Self.makeModelContainer()
+                            }.value
+                            modelContainer = container
+                        }
+                }
+            }
+        }
+    }
+
+    private static func makeModelContainer() -> ModelContainer {
         let schema = Schema([
             Account.self,
             Category.self,
@@ -17,17 +39,10 @@ struct FinTrackApp: App {
         ])
         let configuration = ModelConfiguration(isStoredInMemoryOnly: false)
         do {
-            container = try ModelContainer(for: schema, configurations: [configuration])
+            return try ModelContainer(for: schema, configurations: [configuration])
         } catch {
             fatalError("Не удалось создать ModelContainer: \(error)")
         }
-    }
-
-    var body: some Scene {
-        WindowGroup {
-            RootView()
-        }
-        .modelContainer(container)
     }
 }
 
@@ -75,7 +90,7 @@ struct RootView: View {
                     .id("session-\(appContainer.sessionEpoch)")
             } else {
                 DashboardSkeleton()
-                    .onAppear {
+                    .task(priority: .userInitiated) {
                         let container = AppContainer(context: modelContext)
                         container.seedDefaultCategoriesIfNeeded()
                         container.processDueRecurring()
@@ -84,7 +99,7 @@ struct RootView: View {
                         if lockController.hasPIN && hasCompletedOnboarding && container.isLoggedIn,
                            !isQuickAddActive {
                             lockController.lockIfNeeded(enabled: true)
-                            Task { await attemptBiometricUnlock() }
+                            await attemptBiometricUnlock()
                         }
                         consumeQuickAddIfNeeded()
                     }
