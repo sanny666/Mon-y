@@ -1,18 +1,35 @@
 import SwiftUI
 
-struct DashboardCard<Content: View>: View {
+struct DashboardCard<Content: View, SurfaceOverlay: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var verticalPadding: CGFloat = 16
     @ViewBuilder var content: Content
+    @ViewBuilder var surfaceOverlay: SurfaceOverlay
+
+    init(
+        verticalPadding: CGFloat = 16,
+        @ViewBuilder surfaceOverlay: () -> SurfaceOverlay,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.verticalPadding = verticalPadding
+        self.content = content()
+        self.surfaceOverlay = surfaceOverlay()
+    }
 
     var body: some View {
         content
             .padding(.horizontal, 16)
             .padding(.vertical, verticalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background { AppCardSurface() }
+            .background {
+                AppCardSurface()
+                    .overlay {
+                        surfaceOverlay
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            }
             .shadow(
                 color: shadowColor,
                 radius: reduceTransparency ? 0 : (colorScheme == .dark ? 0 : 4),
@@ -25,6 +42,15 @@ struct DashboardCard<Content: View>: View {
         colorScheme == .dark
             ? .clear
             : Color.black.opacity(0.05)
+    }
+}
+
+extension DashboardCard where SurfaceOverlay == EmptyView {
+    init(
+        verticalPadding: CGFloat = 16,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.init(verticalPadding: verticalPadding, surfaceOverlay: { EmptyView() }, content: content)
     }
 }
 

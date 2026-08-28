@@ -10,6 +10,7 @@ struct BalanceHeroCard: View {
     @AppStorage(AppStorageKeys.hideBalance) private var hideBalance = false
     @AppStorage(AppStorageKeys.appAccentHex) private var appAccentHex = AppAccent.defaultHex
     @Environment(\.colorScheme) private var colorScheme
+    @State private var animationProgress: Double = 0
 
     private let incomeColor = Color(hex: "#268F6B")
     private let expenseColor = Color(hex: "#FF453A")
@@ -28,22 +29,21 @@ struct BalanceHeroCard: View {
 
     var body: some View {
         cardBody
+            .chartAppearAnimation($animationProgress)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(accessibilitySummary)
     }
 
     private var cardBody: some View {
-        DashboardCard(verticalPadding: 22) {
-            ZStack(alignment: .topTrailing) {
-                accentWash
-                    .allowsHitTesting(false)
-
-                VStack(alignment: .leading, spacing: 10) {
-                    headerRow
-                    balanceLink
-                }
-                .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
+        DashboardCard(verticalPadding: 22, surfaceOverlay: {
+            accentWash
+                .allowsHitTesting(false)
+        }) {
+            VStack(alignment: .leading, spacing: 10) {
+                headerRow
+                balanceLink
             }
+            .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
         }
     }
 
@@ -101,9 +101,13 @@ struct BalanceHeroCard: View {
             }
 
             if !hideBalance {
-                BalanceSparkline(points: balancePoints, color: accentColor)
-                    .frame(width: 104, height: 52)
-                    .accessibilityHidden(true)
+                BalanceSparkline(
+                    points: balancePoints,
+                    color: accentColor,
+                    progress: animationProgress
+                )
+                .frame(width: 104, height: 52)
+                .accessibilityHidden(true)
             }
         }
     }
@@ -137,7 +141,6 @@ struct BalanceHeroCard: View {
             startRadius: 0,
             endRadius: 180
         )
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
     }
 
     private var accessibilitySummary: String {
@@ -151,6 +154,7 @@ struct BalanceHeroCard: View {
 private struct BalanceSparkline: View {
     let points: [BalancePoint]
     let color: Color
+    var progress: Double = 1
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -175,25 +179,57 @@ private struct BalanceSparkline: View {
                 let width = geometry.size.width - inset * 2
                 let height = geometry.size.height - inset * 2
                 let stepX = width / CGFloat(points.count - 1)
+                let bottomY = inset + height
 
-                Path { path in
-                    for index in points.indices {
-                        let x = inset + stepX * CGFloat(index)
-                        let normalized = (points[index].balance - lower) / range
-                        let y = inset + height * (1 - normalized)
+                let linePoints: [CGPoint] = points.indices.map { index in
+                    let x = inset + stepX * CGFloat(index)
+                    let normalized = (points[index].balance - lower) / range
+                    let y = inset + height * (1 - normalized)
+                    return CGPoint(x: x, y: y)
+                }
 
-                        if index == 0 {
-                            path.move(to: CGPoint(x: x, y: y))
-                        } else {
-                            path.addLine(to: CGPoint(x: x, y: y))
+                ZStack {
+                    if let first = linePoints.first, let last = linePoints.last {
+                        Path { path in
+                            path.move(to: first)
+                            for point in linePoints.dropFirst() {
+                                path.addLine(to: point)
+                            }
+                            path.addLine(to: CGPoint(x: last.x, y: bottomY))
+                            path.addLine(to: CGPoint(x: first.x, y: bottomY))
+                            path.closeSubpath()
+                        }
+                        .fill(areaFill)
+                        .opacity(progress)
+                    }
+
+                    Path { path in
+                        for (index, point) in linePoints.enumerated() {
+                            if index == 0 {
+                                path.move(to: point)
+                            } else {
+                                path.addLine(to: point)
+                            }
                         }
                     }
+                    .trim(from: 0, to: progress)
+                    .stroke(
+                        color,
+                        style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
+                    )
                 }
-                .stroke(
-                    color,
-                    style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
-                )
             }
         }
+    }
+
+    private var areaFill: LinearGradient {
+        LinearGradient(
+            colors: [
+                color.opacity(colorScheme == .dark ? 0.24 : 0.18),
+                color.opacity(0.02)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
 }
