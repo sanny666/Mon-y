@@ -58,6 +58,7 @@ struct RecurringListView: View {
             }
         }
         .navigationTitle("Повторяющиеся")
+        .toolbarTitleDisplayMode(.large)
         .glassAddFAB(isVisible: !isLoading, accessibilityLabel: "Новый платёж") {
             showAdd = true
         }

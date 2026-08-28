@@ -95,6 +95,7 @@ struct SettingsView: View {
         }
         .appGroupedList()
         .navigationTitle("Настройки")
+        .toolbarTitleDisplayMode(.large)
         .alert("Биометрия недоступна", isPresented: $showBiometryUnavailable) {
             Button("OK", role: .cancel) {}
         } message: {

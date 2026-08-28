@@ -48,6 +48,7 @@ struct BudgetsView: View {
             }
         }
         .navigationTitle("Бюджеты")
+        .toolbarTitleDisplayMode(.large)
         .glassAddFAB(isVisible: !isLoading, accessibilityLabel: "Новый бюджет") {
             showAdd = true
         }

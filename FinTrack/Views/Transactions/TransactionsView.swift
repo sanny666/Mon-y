@@ -17,7 +17,7 @@ struct TransactionsView: View {
 
     private var configuredContent: some View {
         content
-            .navigationTitle("Транзакции")
+            .largeScreenTitle("Транзакции")
             .scrollDismissesKeyboard(.immediately)
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
@@ -63,12 +63,21 @@ struct TransactionsView: View {
     }
 
     private var content: some View {
-        VStack(spacing: 0) {
+        List {
             searchField
+                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+
             filters
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+
             if isLoading {
-                ListSkeleton(rows: 7)
-                    .onTapGesture { dismissSearch() }
+                ForEach(0..<7, id: \.self) { _ in
+                    SkeletonRow()
+                }
             } else if viewModel.transactions.isEmpty {
                 EmptyStateView(
                     systemImage: "list.bullet.rectangle",
@@ -77,38 +86,39 @@ struct TransactionsView: View {
                     actionTitle: "Добавить",
                     action: { showAdd = true }
                 )
-                .onTapGesture { dismissSearch() }
+                .frame(minHeight: 220)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 24, trailing: 16))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
             } else {
-                List {
-                    ForEach(viewModel.groupedByDate, id: \.0) { date, items in
-                        Section(date.formatted(date: .abbreviated, time: .omitted)) {
-                            ForEach(items, id: \.id) { tx in
-                                Button {
-                                    dismissSearch()
-                                    editingTransaction = tx
-                                } label: {
-                                    TransactionRowView(
-                                        transaction: tx,
-                                        currencyCode: tx.account?.currency ?? defaultCurrency
-                                    )
-                                }
-                                .buttonStyle(.plain)
+                ForEach(viewModel.groupedByDate, id: \.0) { date, items in
+                    Section(date.formatted(date: .abbreviated, time: .omitted)) {
+                        ForEach(items, id: \.id) { tx in
+                            Button {
+                                dismissSearch()
+                                editingTransaction = tx
+                            } label: {
+                                TransactionRowView(
+                                    transaction: tx,
+                                    currencyCode: tx.account?.currency ?? defaultCurrency
+                                )
                             }
-                            .onDelete { indexSet in
-                                for index in indexSet {
-                                    viewModel.delete(items[index], container: container)
-                                }
+                            .buttonStyle(.plain)
+                        }
+                        .onDelete { indexSet in
+                            for index in indexSet {
+                                viewModel.delete(items[index], container: container)
                             }
                         }
                     }
                 }
-                .appGroupedList()
-                .scrollDismissesKeyboard(.immediately)
-                .simultaneousGesture(
-                    TapGesture().onEnded { dismissSearch() }
-                )
             }
         }
+        .appGroupedList()
+        .scrollDismissesKeyboard(.immediately)
+        .simultaneousGesture(
+            TapGesture().onEnded { dismissSearch() }
+        )
     }
 
     private var searchField: some View {
@@ -136,9 +146,6 @@ struct TransactionsView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
-        .padding(.bottom, 4)
     }
 
     private var filters: some View {

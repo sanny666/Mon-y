@@ -123,63 +123,62 @@ struct ListSkeleton: View {
     }
 }
 
-struct DashboardSkeleton: View {
+struct DashboardSkeletonContent: View {
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                DashboardCard(verticalPadding: 22) {
+        VStack(alignment: .leading, spacing: 16) {
+            DashboardCard(verticalPadding: 22) {
+                HStack(alignment: .bottom, spacing: 12) {
                     VStack(alignment: .leading, spacing: 10) {
-                        SkeletonBar(width: 110, height: 12)
-                        SkeletonBar(width: 180, height: 34, corner: 8)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-                }
-
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), spacing: 12),
-                        GridItem(.flexible(), spacing: 12)
-                    ],
-                    spacing: 12
-                ) {
-                    compactDonutPlaceholder
-                    compactDonutPlaceholder
-                }
-
-                DashboardCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        header
-                        SkeletonBar(width: 220, height: 14)
-                        HStack(alignment: .bottom, spacing: 8) {
-                            ForEach(0..<7, id: \.self) { index in
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                    .fill(Color.primary.opacity(0.08))
-                                    .frame(height: [48, 72, 36, 88, 56, 64, 40][index])
-                            }
+                        HStack {
+                            SkeletonBar(width: 110, height: 12)
+                            Spacer(minLength: 8)
+                            SkeletonCircle(size: 32)
                         }
-                        .frame(height: 96)
+                        SkeletonBar(width: 180, height: 34, corner: 8)
+                        SkeletonBar(width: 130, height: 10, corner: 5)
                     }
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.primary.opacity(0.08))
+                        .frame(width: 100, height: 56)
                 }
+                .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
+            }
 
-                DashboardCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        header
-                        ForEach(0..<3, id: \.self) { index in
-                            SkeletonRow()
-                            if index < 2 {
-                                Divider().opacity(0.5)
-                            }
+            HStack(spacing: 12) {
+                compactDonutPlaceholder
+                compactDonutPlaceholder
+            }
+
+            DashboardCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    header
+                    SkeletonBar(width: 220, height: 14)
+                    HStack(alignment: .bottom, spacing: 8) {
+                        ForEach(0..<7, id: \.self) { index in
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(Color.primary.opacity(0.08))
+                                .frame(height: [48, 72, 36, 88, 56, 64, 40][index])
+                        }
+                    }
+                    .frame(height: 96)
+                }
+            }
+
+            DashboardCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    header
+                    ForEach(0..<3, id: \.self) { index in
+                        SkeletonRow()
+                        if index < 2 {
+                            Divider().opacity(0.5)
                         }
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 108)
         }
-        .scrollDisabled(true)
-        .background(Color(uiColor: .systemGroupedBackground))
+        .padding(.horizontal, 16)
+        .padding(.bottom, 108)
         .skeletonPulse()
-        .allowsHitTesting(false)
     }
 
     private var header: some View {
@@ -209,6 +208,17 @@ struct DashboardSkeleton: View {
             SkeletonCircle(size: 8)
             SkeletonBar(height: 10)
         }
+    }
+}
+
+struct DashboardSkeleton: View {
+    var body: some View {
+        ScrollView {
+            DashboardSkeletonContent()
+        }
+        .scrollDisabled(true)
+        .background(Color(uiColor: .systemGroupedBackground))
+        .allowsHitTesting(false)
     }
 }
 

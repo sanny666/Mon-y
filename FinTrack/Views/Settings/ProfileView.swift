@@ -280,25 +280,87 @@ private struct ProfileButtonStyle: ViewModifier {
 }
 
 struct ProfileToolbarModifier: ViewModifier {
+    var diameter: CGFloat = 28
+
     func body(content: Content) -> some View {
         content
             .toolbar {
                 if #available(iOS 26.0, *) {
                     ToolbarItem(placement: .topBarTrailing) {
-                        ProfileButton()
+                        ProfileButton(diameter: diameter)
                     }
                     .sharedBackgroundVisibility(.hidden)
                 } else {
                     ToolbarItem(placement: .topBarTrailing) {
-                        ProfileButton()
+                        ProfileButton(diameter: diameter)
                     }
                 }
             }
     }
 }
 
+struct ScreenHeader: View {
+    let title: String
+    var subtitle: String? = nil
+    var showsProfile: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(title)
+                    .font(.largeTitle.bold())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Spacer(minLength: 8)
+                if showsProfile {
+                    ProfileButton(diameter: 34)
+                }
+            }
+            if let subtitle, !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 24)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct LargeScreenTitleModifier: ViewModifier {
+    let title: String
+    var subtitle: String?
+    var showsProfile: Bool
+
+    func body(content: Content) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScreenHeader(title: title, subtitle: subtitle, showsProfile: showsProfile)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+        .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
 extension View {
     func profileToolbar() -> some View {
         modifier(ProfileToolbarModifier())
+    }
+
+    /// Room-y large title in content (not the compact nav bar), profile on the title row.
+    func largeScreenTitle(
+        _ title: String,
+        subtitle: String? = nil,
+        showsProfile: Bool = false
+    ) -> some View {
+        modifier(LargeScreenTitleModifier(
+            title: title,
+            subtitle: subtitle,
+            showsProfile: showsProfile
+        ))
     }
 }

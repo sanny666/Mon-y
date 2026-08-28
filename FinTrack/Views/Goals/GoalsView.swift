@@ -54,6 +54,7 @@ struct GoalsView: View {
             }
         }
         .navigationTitle("Цели")
+        .toolbarTitleDisplayMode(.large)
         .glassAddFAB(isVisible: !isLoading, accessibilityLabel: "Новая цель") {
             showAdd = true
         }

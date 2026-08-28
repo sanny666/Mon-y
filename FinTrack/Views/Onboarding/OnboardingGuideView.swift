@@ -20,9 +20,9 @@ struct OnboardingGuideView: View {
         ),
         .init(
             id: 1,
-            title: "Счета",
-            subtitle: "Карты, наличные и депозиты. Общий баланс всегда на главном экране.",
-            systemImage: "creditcard"
+            title: "Аналитика",
+            subtitle: "Графики расходов и доходов по неделям, месяцам и годам — в отдельном табе.",
+            systemImage: "chart.xyaxis.line"
         ),
         .init(
             id: 2,

@@ -7,6 +7,7 @@ struct HealthExpenseChart: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var animationProgress: Double = 0
+    @State private var selectedIndex: Int?
 
     private let chartColor = SemanticIcon.flame
     private let weekdayLabels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
@@ -43,6 +44,14 @@ struct HealthExpenseChart: View {
 
     private var hasExpenses: Bool { total > 0 }
 
+    private var todayIndex: Int {
+        chartPoints.firstIndex { calendar.isDateInToday($0.date) } ?? max(chartPoints.count - 1, 0)
+    }
+
+    private var highlightedIndex: Int {
+        selectedIndex ?? todayIndex
+    }
+
     private var yUpperBound: Double {
         let peak = chartPoints.map(\.amount).max() ?? 0
         return max(peak, average, 1) * 1.2
@@ -57,7 +66,7 @@ struct HealthExpenseChart: View {
             VStack(alignment: .leading, spacing: 12) {
                 DashboardSectionHeader(
                     title: "Расходы",
-                    systemImage: "flame.fill",
+                    systemImage: "arrow.up.circle.fill",
                     tint: chartColor,
                     tintTitle: true,
                     action: onOpenDetails
@@ -139,24 +148,56 @@ struct HealthExpenseChart: View {
                     }
 
                     HStack(alignment: .bottom, spacing: 0) {
-                        ForEach(chartPoints) { point in
+                        ForEach(Array(chartPoints.enumerated()), id: \.element.id) { index, point in
                             dayBar(
                                 point: point,
+                                isHighlighted: index == highlightedIndex,
                                 cellWidth: cellWidth,
                                 barWidth: barWidth,
                                 chartHeight: chartHeight
                             )
                         }
                     }
+
+                    if let selectedIndex, chartPoints.indices.contains(selectedIndex) {
+                        chartDayTooltip(for: chartPoints[selectedIndex])
+                            .position(
+                                x: clampedTooltipCenterX(
+                                    index: selectedIndex,
+                                    cellWidth: cellWidth,
+                                    chartWidth: geo.size.width
+                                ),
+                                y: 22
+                            )
+                            .transition(.scale(scale: 0.88, anchor: .bottom).combined(with: .opacity))
+                    }
                 }
                 .frame(height: chartHeight)
+                .contentShape(Rectangle())
+                .gesture(hasExpenses ? scrubGesture(cellWidth: cellWidth) : nil)
+                .animation(.spring(response: 0.28, dampingFraction: 0.82), value: selectedIndex != nil)
+                .sensoryFeedback(.selection, trigger: selectedIndex) { _, new in
+                    new != nil
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Расходы за неделю")
+                .accessibilityValue(accessibilityChartValue)
+                .accessibilityAdjustableAction { direction in
+                    guard hasExpenses else { return }
+                    let delta = direction == .increment ? 1 : -1
+                    let base = selectedIndex ?? todayIndex
+                    let next = min(max(base + delta, 0), chartPoints.count - 1)
+                    withAnimation(.snappy(duration: 0.18, extraBounce: 0.05)) {
+                        selectedIndex = next
+                    }
+                }
 
                 HStack(spacing: 0) {
-                    ForEach(chartPoints) { point in
-                        let isToday = calendar.isDateInToday(point.date)
+                    ForEach(Array(chartPoints.enumerated()), id: \.element.id) { index, point in
                         Text(weekdayLabel(for: point.date))
                             .font(.caption)
-                            .foregroundStyle(isToday ? chartColor : .secondary)
+                            .foregroundStyle(index == highlightedIndex ? chartColor : .secondary)
+                            .animation(.snappy(duration: 0.18, extraBounce: 0.05), value: highlightedIndex)
                             .frame(width: cellWidth)
                     }
                 }
@@ -164,20 +205,111 @@ struct HealthExpenseChart: View {
         }
     }
 
+    private var accessibilityChartValue: String {
+        if let selectedIndex, chartPoints.indices.contains(selectedIndex) {
+            let point = chartPoints[selectedIndex]
+            let amount = CurrencyFormatter.string(amount: point.amount, currencyCode: currencyCode)
+            return "\(weekdayLabel(for: point.date)): \(amount)"
+        }
+        let averageText = CurrencyFormatter.string(amount: average, currencyCode: currencyCode)
+        return "Среднее \(averageText) в день"
+    }
+
+    private func scrubGesture(cellWidth: CGFloat) -> some Gesture {
+        LongPressGesture(minimumDuration: 0.2)
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
+            .onChanged { value in
+                switch value {
+                case .second(true, let drag?):
+                    updateSelection(at: drag.location.x, cellWidth: cellWidth)
+                default:
+                    break
+                }
+            }
+            .onEnded { _ in
+                withAnimation(.snappy(duration: 0.18, extraBounce: 0.05)) {
+                    selectedIndex = nil
+                }
+            }
+    }
+
+    private func updateSelection(at x: CGFloat, cellWidth: CGFloat) {
+        let index = dayIndex(at: x, cellWidth: cellWidth)
+        guard index != selectedIndex else { return }
+
+        if selectedIndex == nil {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                selectedIndex = index
+            }
+        } else {
+            withAnimation(.snappy(duration: 0.18, extraBounce: 0.05)) {
+                selectedIndex = index
+            }
+        }
+    }
+
+    private func dayIndex(at x: CGFloat, cellWidth: CGFloat) -> Int {
+        let index = Int(x / cellWidth)
+        return min(max(index, 0), chartPoints.count - 1)
+    }
+
+    private func barCenterX(index: Int, cellWidth: CGFloat) -> CGFloat {
+        (CGFloat(index) + 0.5) * cellWidth
+    }
+
+    private func clampedTooltipCenterX(index: Int, cellWidth: CGFloat, chartWidth: CGFloat) -> CGFloat {
+        let center = barCenterX(index: index, cellWidth: cellWidth)
+        let halfWidth: CGFloat = 44
+        return min(max(center, halfWidth + 4), chartWidth - halfWidth - 4)
+    }
+
+    private func chartDayTooltip(for point: DailyAmountPoint) -> some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 2) {
+                Text(weekdayLabel(for: point.date))
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Text(CurrencyFormatter.string(amount: point.amount, currencyCode: currencyCode))
+                    .font(.system(.subheadline, design: .rounded).weight(.bold))
+                    .foregroundStyle(.primary)
+                    .contentTransition(.numericText())
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(
+                                Color.white.opacity(colorScheme == .dark ? 0.14 : 0.45),
+                                lineWidth: 0.5
+                            )
+                    }
+                    .shadow(color: .black.opacity(colorScheme == .dark ? 0.35 : 0.12), radius: 8, y: 4)
+            }
+
+            TooltipCaret()
+                .offset(y: -1)
+        }
+        .animation(.snappy(duration: 0.18, extraBounce: 0.05), value: point.id)
+    }
+
     private func dayBar(
         point: DailyAmountPoint,
+        isHighlighted: Bool,
         cellWidth: CGFloat,
         barWidth: CGFloat,
         chartHeight: CGFloat
     ) -> some View {
-        let isToday = calendar.isDateInToday(point.date)
         let fillHeight = chartHeight * CGFloat(visualAmount(for: point.amount) / yUpperBound) * animationProgress
         let cornerRadius = min(5, barWidth / 2, fillHeight / 2)
 
         return VStack(spacing: 0) {
             Spacer(minLength: 0)
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(isToday ? chartColor : barColor)
+                .fill(isHighlighted ? chartColor : barColor)
+                .animation(.snappy(duration: 0.18, extraBounce: 0.05), value: isHighlighted)
                 .frame(width: barWidth, height: fillHeight)
         }
         .frame(width: cellWidth, height: chartHeight)
@@ -191,5 +323,34 @@ struct HealthExpenseChart: View {
         let weekday = calendar.component(.weekday, from: date)
         let index = (weekday + 5) % 7
         return weekdayLabels[index]
+    }
+}
+
+private struct TooltipCaret: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        TooltipCaretShape()
+            .fill(.ultraThinMaterial)
+            .frame(width: 14, height: 7)
+            .overlay {
+                TooltipCaretShape()
+                    .stroke(
+                        Color.white.opacity(colorScheme == .dark ? 0.14 : 0.45),
+                        lineWidth: 0.5
+                    )
+            }
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.2 : 0.08), radius: 2, y: 1)
+    }
+}
+
+private struct TooltipCaretShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.closeSubpath()
+        return path
     }
 }

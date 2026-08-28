@@ -10,6 +10,7 @@ enum AppStorageKeys {
     static let faceIDEnabled = "faceIDEnabled"
     static let hasSeededSubcategories = "hasSeededSubcategories"
     static let hasLaunchedInThisInstall = "hasLaunchedInThisInstall"
+    static let hideBalance = "hideBalance"
 }
 
 /// UserDefaults vanish on uninstall; Keychain often does not. First launch of a
@@ -115,6 +116,7 @@ enum IconPalette {
 enum SemanticIcon {
     static let chart = Color(hex: "#2F6FED")
     static let today = Color(hex: "#F5A524")
+    static let week = Color(hex: "#1ABC9C")
     static let flame = Color(hex: "#FF6B00")
     static let list = Color(hex: "#5C6BC0")
     static let tag = Color(hex: "#C45C26")

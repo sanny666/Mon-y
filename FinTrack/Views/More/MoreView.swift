@@ -11,9 +11,9 @@ struct MoreView: View {
             List {
                 Section {
                     NavigationLink {
-                        AnalyticsView()
+                        AccountsView()
                     } label: {
-                        moreRow("Аналитика", systemImage: "chart.xyaxis.line", tint: SemanticIcon.chart)
+                        moreRow("Счета", systemImage: "creditcard", tint: SemanticIcon.goal)
                     }
                     NavigationLink {
                         CategoriesView()
@@ -56,8 +56,7 @@ struct MoreView: View {
                 }
             }
             .appGroupedList()
-            .navigationTitle("Ещё")
-            .profileToolbar()
+            .largeScreenTitle("Ещё", showsProfile: true)
             .alert("Нет данных", isPresented: $showExportEmpty) {
                 Button("OK", role: .cancel) {}
             } message: {

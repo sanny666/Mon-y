@@ -5,102 +5,97 @@ struct AccountsView: View {
     @State private var viewModel = AccountsViewModel()
     @State private var showAdd = false
     @State private var accountToDelete: Account?
-    @State private var path = NavigationPath()
     @State private var isLoading = true
 
     var body: some View {
-        NavigationStack(path: $path) {
-            Group {
-                if isLoading {
-                    ListSkeleton(rows: 5)
-                } else if viewModel.accounts.isEmpty {
-                    EmptyStateView(
-                        systemImage: "creditcard",
-                        title: "Нет счетов",
-                        subtitle: "Создайте счёт, чтобы учитывать деньги",
-                        actionTitle: "Добавить счёт",
-                        action: { showAdd = true }
-                    )
-                } else {
-                    List {
-                        ForEach(viewModel.accounts, id: \.id) { account in
-                            NavigationLink(value: account.id) {
-                                HStack(spacing: 12) {
-                                    Image(systemName: account.icon)
-                                        .foregroundStyle(Color(hex: account.colorHex))
-                                        .frame(width: 36, height: 36)
-                                        .background(Color(hex: account.colorHex).opacity(0.15))
-                                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(account.name)
-                                            .font(.body.weight(.medium))
-                                        Text(account.type.title)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    Text(CurrencyFormatter.string(
-                                        amount: viewModel.balances[account.id] ?? account.initialBalance,
-                                        currencyCode: account.currency
-                                    ))
-                                    .fontWeight(.semibold)
+        Group {
+            if isLoading {
+                ListSkeleton(rows: 5)
+            } else if viewModel.accounts.isEmpty {
+                EmptyStateView(
+                    systemImage: "creditcard",
+                    title: "Нет счетов",
+                    subtitle: "Создайте счёт, чтобы учитывать деньги",
+                    actionTitle: "Добавить счёт",
+                    action: { showAdd = true }
+                )
+            } else {
+                List {
+                    ForEach(viewModel.accounts, id: \.id) { account in
+                        NavigationLink {
+                            AccountDetailView(account: account)
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: account.icon)
+                                    .foregroundStyle(Color(hex: account.colorHex))
+                                    .frame(width: 36, height: 36)
+                                    .background(Color(hex: account.colorHex).opacity(0.15))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(account.name)
+                                        .font(.body.weight(.medium))
+                                    Text(account.type.title)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
                                 }
-                            }
-                        }
-                        .onDelete { indexSet in
-                            if let index = indexSet.first {
-                                accountToDelete = viewModel.accounts[index]
+                                Spacer()
+                                Text(CurrencyFormatter.string(
+                                    amount: viewModel.balances[account.id] ?? account.initialBalance,
+                                    currencyCode: account.currency
+                                ))
+                                .fontWeight(.semibold)
                             }
                         }
                     }
-                    .appGroupedList()
-                }
-            }
-            .navigationTitle("Счета")
-            .glassAddFAB(
-                isVisible: path.isEmpty && !isLoading,
-                accessibilityLabel: "Новый счёт"
-            ) {
-                showAdd = true
-            }
-            .navigationDestination(for: UUID.self) { id in
-                if let account = viewModel.accounts.first(where: { $0.id == id }) {
-                    AccountDetailView(account: account)
-                }
-            }
-            .sheet(isPresented: $showAdd) {
-                NavigationStack {
-                    AccountEditorView(account: nil)
-                }
-            }
-            .confirmationDialog(
-                "Удалить счёт?",
-                isPresented: Binding(
-                    get: { accountToDelete != nil },
-                    set: { if !$0 { accountToDelete = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
-                Button("Удалить", role: .destructive) {
-                    if let account = accountToDelete {
-                        viewModel.delete(account, container: container)
+                    .onDelete { indexSet in
+                        if let index = indexSet.first {
+                            accountToDelete = viewModel.accounts[index]
+                        }
                     }
-                    accountToDelete = nil
                 }
-                Button("Отмена", role: .cancel) {
-                    accountToDelete = nil
+                .appGroupedList()
+            }
+        }
+        .navigationTitle("Счета")
+        .toolbarTitleDisplayMode(.large)
+        .glassAddFAB(
+            isVisible: !isLoading,
+            accessibilityLabel: "Новый счёт"
+        ) {
+            showAdd = true
+        }
+        .sheet(isPresented: $showAdd) {
+            NavigationStack {
+                AccountEditorView(account: nil)
+            }
+        }
+        .confirmationDialog(
+            "Удалить счёт?",
+            isPresented: Binding(
+                get: { accountToDelete != nil },
+                set: { if !$0 { accountToDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Удалить", role: .destructive) {
+                if let account = accountToDelete {
+                    viewModel.delete(account, container: container)
                 }
-            } message: {
-                Text("Удалятся все связанные транзакции.")
+                accountToDelete = nil
             }
-            .onAppear { FirstLoad.finish($isLoading) { viewModel.reload(container: container) } }
-            .onChange(of: container.refreshToken) { _, _ in
-                guard !isLoading else { return }
-                viewModel.reload(container: container)
+            Button("Отмена", role: .cancel) {
+                accountToDelete = nil
             }
-            .onChange(of: showAdd) { _, isPresented in
-                if !isPresented { viewModel.reload(container: container) }
-            }
+        } message: {
+            Text("Удалятся все связанные транзакции.")
+        }
+        .onAppear { FirstLoad.finish($isLoading) { viewModel.reload(container: container) } }
+        .onChange(of: container.refreshToken) { _, _ in
+            guard !isLoading else { return }
+            viewModel.reload(container: container)
+        }
+        .onChange(of: showAdd) { _, isPresented in
+            if !isPresented { viewModel.reload(container: container) }
         }
     }
 }
@@ -144,6 +139,7 @@ struct AccountDetailView: View {
             }
         }
         .navigationTitle(account.name)
+        .toolbarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if !isLoading {

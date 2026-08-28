@@ -33,6 +33,7 @@ struct CategoriesView: View {
             }
         }
         .navigationTitle("Категории")
+        .toolbarTitleDisplayMode(.large)
         .glassAddFAB(isVisible: !isLoading, accessibilityLabel: "Новая категория") {
             showAddRoot = true
         }

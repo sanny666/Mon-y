@@ -41,8 +41,7 @@ struct AnalyticsView: View {
                 .simultaneousGesture(periodSwipeGesture)
             }
         }
-        .navigationTitle("Аналитика")
-        .toolbar(.visible, for: .navigationBar)
+        .largeScreenTitle("Аналитика")
         .onAppear { FirstLoad.finish($isLoading, reload) }
         .onChange(of: container.refreshToken) { _, _ in
             guard !isLoading else { return }

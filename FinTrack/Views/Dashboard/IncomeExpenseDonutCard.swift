@@ -83,7 +83,7 @@ struct IncomeExpenseDonutCard: View {
             } else {
                 Chart(slices) { slice in
                     SectorMark(
-                        angle: .value("Сумма", slice.amount * animationProgress),
+                        angle: .value("Сумма", slice.amount),
                         innerRadius: .ratio(innerRatio),
                         angularInset: compact ? 1.5 : 2
                     )
@@ -91,6 +91,8 @@ struct IncomeExpenseDonutCard: View {
                     .cornerRadius(compact ? 3 : 4)
                 }
                 .chartLegend(.hidden)
+                .opacity(animationProgress)
+                .scaleEffect(0.92 + 0.08 * animationProgress)
             }
 
             VStack(spacing: 1) {

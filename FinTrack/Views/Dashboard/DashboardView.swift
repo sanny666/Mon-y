@@ -5,86 +5,61 @@ struct DashboardView: View {
     @AppStorage(AppStorageKeys.defaultCurrency) private var defaultCurrency = AppCurrency.kzt.rawValue
     @State private var viewModel = DashboardViewModel()
     @State private var showAddTransaction = false
-    @State private var path = NavigationPath()
     @State private var isLoading = true
     var onOpenTransactions: () -> Void = {}
+    var onOpenAnalytics: () -> Void = {}
 
     var body: some View {
-        NavigationStack(path: $path) {
-            Group {
-                if isLoading {
-                    VStack(alignment: .leading, spacing: 16) {
-                        greetingHeader
-                            .padding(.horizontal, 16)
-                        DashboardSkeleton()
-                    }
-                } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            greetingHeader
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    BalanceHeroCard(
+                        totalBalance: viewModel.totalBalance,
+                        monthIncome: viewModel.monthIncome,
+                        monthExpense: viewModel.monthExpense,
+                        balancePoints: viewModel.balancePoints,
+                        currencyCode: viewModel.currencyCode
+                    )
 
-                            balanceCard
+                    IncomeExpenseDonutCarousel(
+                        todayIncome: viewModel.todayIncome,
+                        todayExpense: viewModel.todayExpense,
+                        weekIncome: viewModel.weekIncome,
+                        weekExpense: viewModel.weekExpense,
+                        monthIncome: viewModel.monthIncome,
+                        monthExpense: viewModel.monthExpense,
+                        currencyCode: viewModel.currencyCode
+                    )
 
-                            LazyVGrid(
-                                columns: [
-                                    GridItem(.flexible(), spacing: 12),
-                                    GridItem(.flexible(), spacing: 12)
-                                ],
-                                spacing: 12
-                            ) {
-                                IncomeExpenseDonutCard(
-                                    title: "Сегодня",
-                                    systemImage: "sun.max.fill",
-                                    tint: SemanticIcon.today,
-                                    income: viewModel.todayIncome,
-                                    expense: viewModel.todayExpense,
-                                    currencyCode: viewModel.currencyCode,
-                                    compact: true
-                                )
+                    HealthExpenseChart(
+                        points: viewModel.expenseTrend,
+                        currencyCode: viewModel.currencyCode,
+                        onOpenDetails: onOpenAnalytics
+                    )
 
-                                IncomeExpenseDonutCard(
-                                    title: "Этот месяц",
-                                    systemImage: "chart.pie.fill",
-                                    tint: SemanticIcon.chart,
-                                    income: viewModel.monthIncome,
-                                    expense: viewModel.monthExpense,
-                                    currencyCode: viewModel.currencyCode,
-                                    compact: true
-                                )
-                            }
-
-                            HealthExpenseChart(
-                                points: viewModel.expenseTrend,
-                                currencyCode: viewModel.currencyCode,
-                                onOpenDetails: { path.append("analytics") }
-                            )
-
-                            recentSection
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 108)
-                    }
-                    .background(Color(uiColor: .systemGroupedBackground))
+                    recentSection
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 108)
             }
             .background(Color(uiColor: .systemGroupedBackground))
-            .toolbar(path.isEmpty ? .hidden : .automatic, for: .navigationBar)
+            .overlay {
+                if isLoading {
+                    DashboardSkeletonContent()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .background(Color(uiColor: .systemGroupedBackground))
+                        .allowsHitTesting(false)
+                }
+            }
+            .largeScreenTitle(Greeting.title(), subtitle: Greeting.subtitle(), showsProfile: true)
             .glassAddFAB(
-                isVisible: path.isEmpty && !isLoading,
+                isVisible: !isLoading,
                 accessibilityLabel: "Новая транзакция"
             ) {
                 showAddTransaction = true
             }
             .sheet(isPresented: $showAddTransaction) {
                 TransactionEditorView(transaction: nil)
-            }
-            .navigationDestination(for: String.self) { value in
-                switch value {
-                case "analytics":
-                    AnalyticsView()
-                default:
-                    EmptyView()
-                }
             }
             .onAppear { FirstLoad.finish($isLoading, reload) }
             .onChange(of: container.refreshToken) { _, _ in
@@ -95,43 +70,6 @@ struct DashboardView: View {
                 if !isPresented { reload() }
             }
         }
-    }
-
-    private var greetingHeader: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .center, spacing: 12) {
-                Text(Greeting.title())
-                    .font(.largeTitle.bold())
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                Spacer(minLength: 8)
-                ProfileButton(diameter: 34)
-            }
-            Text(Greeting.subtitle())
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityElement(children: .combine)
-        .padding(.top, 8)
-    }
-
-    private var balanceCard: some View {
-        DashboardCard(verticalPadding: 22) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Общий баланс")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text(CurrencyFormatter.string(amount: viewModel.totalBalance, currencyCode: viewModel.currencyCode))
-                    .font(.system(.largeTitle, design: .rounded).weight(.bold))
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "Общий баланс \(CurrencyFormatter.string(amount: viewModel.totalBalance, currencyCode: viewModel.currencyCode))"
-        )
     }
 
     private var recentSection: some View {

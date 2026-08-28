@@ -3,7 +3,7 @@ import SwiftUI
 enum MainTab: Hashable {
     case home
     case transactions
-    case accounts
+    case analytics
     case more
 }
 
@@ -12,7 +12,10 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-                DashboardView(onOpenTransactions: { selectedTab = .transactions })
+                DashboardView(
+                    onOpenTransactions: { selectedTab = .transactions },
+                    onOpenAnalytics: { selectedTab = .analytics }
+                )
                     .tabItem {
                         Label("Главная", systemImage: "house")
                     }
@@ -24,11 +27,13 @@ struct MainTabView: View {
                     }
                     .tag(MainTab.transactions)
 
-                AccountsView()
-                    .tabItem {
-                        Label("Счета", systemImage: "creditcard")
-                    }
-                    .tag(MainTab.accounts)
+                NavigationStack {
+                    AnalyticsView()
+                }
+                .tabItem {
+                    Label("Аналитика", systemImage: "chart.xyaxis.line")
+                }
+                .tag(MainTab.analytics)
 
                 MoreView()
                     .tabItem {

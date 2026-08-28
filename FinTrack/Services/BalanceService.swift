@@ -48,6 +48,21 @@ struct BalanceService {
         sum(transactions, type: .expense, inDayOf: date)
     }
 
+    func weekIncome(transactions: [Transaction], in date: Date = .now) -> Double {
+        sum(transactions, type: .income, inWeekOf: date)
+    }
+
+    func weekExpense(transactions: [Transaction], in date: Date = .now) -> Double {
+        sum(transactions, type: .expense, inWeekOf: date)
+    }
+
+    private func sum(_ transactions: [Transaction], type: TransactionType, inWeekOf date: Date) -> Double {
+        guard let range = Calendar.current.dateInterval(of: .weekOfYear, for: date) else { return 0 }
+        return transactions
+            .filter { $0.type == type && range.contains($0.date) }
+            .reduce(0) { $0 + $1.amount }
+    }
+
     private func sum(_ transactions: [Transaction], type: TransactionType, inDayOf date: Date) -> Double {
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: date)

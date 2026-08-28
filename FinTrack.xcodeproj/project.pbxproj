@@ -28,6 +28,8 @@
 		2DADD84FC09B9C4041DBF716 /* WidgetSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C270EE3458535D3E695B5C6 /* WidgetSnapshotStore.swift */; };
 		329B81AF8575D1F39A0F785D /* SkeletonViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D08ED04EDE398055C646F0E4 /* SkeletonViews.swift */; };
 		331F17C1DE1830416AF5A36C /* IncomeExpenseDonutCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7584C4D0286CB3478FC8F8F9 /* IncomeExpenseDonutCard.swift */; };
+		F3A4B5C6D7E8F90123456789 /* IncomeExpenseDonutCarousel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4B5C6D7E8F9012345678901 /* IncomeExpenseDonutCarousel.swift */; };
+		B1C2D3E4F5A6789012345678 /* BalanceHeroCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2D3E4F5A678901234567890 /* BalanceHeroCard.swift */; };
 		339FA7D895203097EEF576EB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6B399EA26973B0F4A8B640 /* SettingsView.swift */; };
 		7C91E04AB2D14F8E9A3056AB /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E41C90A12D4F8E9C3056AB /* ProfileView.swift */; };
 		36BC5A76E446C1D63A814BCA /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59F04F2C86DDAF6128F6FA0C /* AppContainer.swift */; };
@@ -172,6 +174,8 @@
 		6DB6F8DF7677ABE602E8B03B /* BudgetsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetsView.swift; sourceTree = "<group>"; };
 		6F79732BD6FC3FD84D3DEB7E /* RecurringListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurringListView.swift; sourceTree = "<group>"; };
 		7584C4D0286CB3478FC8F8F9 /* IncomeExpenseDonutCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomeExpenseDonutCard.swift; sourceTree = "<group>"; };
+		A4B5C6D7E8F9012345678901 /* IncomeExpenseDonutCarousel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomeExpenseDonutCarousel.swift; sourceTree = "<group>"; };
+		C2D3E4F5A678901234567890 /* BalanceHeroCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalanceHeroCard.swift; sourceTree = "<group>"; };
 		7689D08963D9E0644C80649D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		76B4D3D0D3BEABC6B510A681 /* OnboardingChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingChrome.swift; sourceTree = "<group>"; };
 		78FF01C3CFA990DA9570432D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -399,6 +403,8 @@
 				0E30611F5C70AADC2D5758AE /* DashboardView.swift */,
 				B42BAA10C2EDDF05495FB460 /* HealthExpenseChart.swift */,
 				7584C4D0286CB3478FC8F8F9 /* IncomeExpenseDonutCard.swift */,
+				A4B5C6D7E8F9012345678901 /* IncomeExpenseDonutCarousel.swift */,
+				C2D3E4F5A678901234567890 /* BalanceHeroCard.swift */,
 			);
 			path = Dashboard;
 			sourceTree = "<group>";
@@ -664,6 +670,8 @@
 				20FB6E6E5907ABCDAE8E5142 /* HealthExpenseChart.swift in Sources */,
 				22A4824662F11D489E543017 /* Helpers.swift in Sources */,
 				331F17C1DE1830416AF5A36C /* IncomeExpenseDonutCard.swift in Sources */,
+				F3A4B5C6D7E8F90123456789 /* IncomeExpenseDonutCarousel.swift in Sources */,
+				B1C2D3E4F5A6789012345678 /* BalanceHeroCard.swift in Sources */,
 				B2583BA6884A529DD8A2FA2A /* KeychainStore.swift in Sources */,
 				3E3324A0C8E3A08C567B948C /* LoginView.swift in Sources */,
 				A4D815764ADD2F0EEF4FB879 /* MainTabView.swift in Sources */,
