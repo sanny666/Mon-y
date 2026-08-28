@@ -1,4 +1,3 @@
-import Charts
 import SwiftUI
 
 struct HealthExpenseChart: View {
@@ -19,12 +18,10 @@ struct HealthExpenseChart: View {
         return calendar
     }
 
-    private var weekPoints: [DailyAmountPoint] {
+    /// Последние 7 дней, сегодня — всегда последний столбец.
+    private var chartPoints: [DailyAmountPoint] {
         let today = calendar.startOfDay(for: Date.now)
-        guard let interval = calendar.dateInterval(of: .weekOfYear, for: today) else {
-            return points
-        }
-        let startDay = calendar.startOfDay(for: interval.start)
+        guard let startDay = calendar.date(byAdding: .day, value: -6, to: today) else { return [] }
         let byDay = Dictionary(uniqueKeysWithValues: points.map {
             (calendar.startOfDay(for: $0.date), $0.amount)
         })
@@ -35,35 +32,24 @@ struct HealthExpenseChart: View {
         }
     }
 
-    private var elapsedWeekPoints: [DailyAmountPoint] {
-        let today = calendar.startOfDay(for: Date.now)
-        return weekPoints.filter { $0.date <= today }
-    }
-
     private var total: Double {
-        elapsedWeekPoints.reduce(0) { $0 + $1.amount }
+        chartPoints.reduce(0) { $0 + $1.amount }
     }
 
     private var average: Double {
-        guard !elapsedWeekPoints.isEmpty else { return 0 }
-        return total / Double(elapsedWeekPoints.count)
+        guard !chartPoints.isEmpty else { return 0 }
+        return total / Double(chartPoints.count)
     }
 
     private var hasExpenses: Bool { total > 0 }
 
     private var yUpperBound: Double {
-        let peak = weekPoints.map(\.amount).max() ?? 0
+        let peak = chartPoints.map(\.amount).max() ?? 0
         return max(peak, average, 1) * 1.2
     }
 
-    private var barFill: LinearGradient {
-        LinearGradient(
-            colors: colorScheme == .dark
-                ? [Color.white.opacity(0.52), Color.white.opacity(0.22)]
-                : [Color.black.opacity(0.08), Color.black.opacity(0.26)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
+    private var barColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.35) : Color.black.opacity(0.22)
     }
 
     var body: some View {
@@ -128,40 +114,73 @@ struct HealthExpenseChart: View {
                 .accessibilityElement(children: .combine)
             }
 
-            Chart {
-                ForEach(weekPoints) { point in
-                    BarMark(
-                        x: .value("День", point.date, unit: .day),
-                        y: .value("Расход", visualAmount(for: point.amount) * animationProgress),
-                        width: .ratio(0.55)
-                    )
-                    .foregroundStyle(barFill)
-                    .cornerRadius(5)
-                }
+            expenseBarChart
+        }
+        .frame(height: 156)
+    }
 
-                if hasExpenses {
-                    RuleMark(y: .value("Среднее", average * animationProgress))
-                        .foregroundStyle(chartColor)
-                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
-                        .opacity(animationProgress)
-                }
-            }
-            .chartYScale(domain: 0...yUpperBound)
-            .chartYAxis(.hidden)
-            .chartLegend(.hidden)
-            .chartXAxis {
-                AxisMarks(values: weekPoints.map(\.date)) { value in
-                    AxisValueLabel(centered: true) {
-                        if let date = value.as(Date.self) {
-                            Text(weekdayLabel(for: date))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+    private var expenseBarChart: some View {
+        GeometryReader { geo in
+            let labelHeight: CGFloat = 18
+            let chartHeight = max(geo.size.height - labelHeight - 6, 1)
+            let count = max(CGFloat(chartPoints.count), 1)
+            let cellWidth = geo.size.width / count
+            let barWidth = cellWidth * 0.55
+            let averageOffset = chartHeight * CGFloat(average / yUpperBound) * animationProgress
+
+            VStack(spacing: 6) {
+                ZStack(alignment: .bottom) {
+                    if hasExpenses {
+                        Rectangle()
+                            .fill(Color.secondary.opacity(0.45))
+                            .frame(height: 1.5)
+                            .padding(.bottom, averageOffset)
+                            .opacity(animationProgress)
+                    }
+
+                    HStack(alignment: .bottom, spacing: 0) {
+                        ForEach(chartPoints) { point in
+                            dayBar(
+                                point: point,
+                                cellWidth: cellWidth,
+                                barWidth: barWidth,
+                                chartHeight: chartHeight
+                            )
                         }
+                    }
+                }
+                .frame(height: chartHeight)
+
+                HStack(spacing: 0) {
+                    ForEach(chartPoints) { point in
+                        let isToday = calendar.isDateInToday(point.date)
+                        Text(weekdayLabel(for: point.date))
+                            .font(.caption)
+                            .foregroundStyle(isToday ? chartColor : .secondary)
+                            .frame(width: cellWidth)
                     }
                 }
             }
         }
-        .frame(height: 156)
+    }
+
+    private func dayBar(
+        point: DailyAmountPoint,
+        cellWidth: CGFloat,
+        barWidth: CGFloat,
+        chartHeight: CGFloat
+    ) -> some View {
+        let isToday = calendar.isDateInToday(point.date)
+        let fillHeight = chartHeight * CGFloat(visualAmount(for: point.amount) / yUpperBound) * animationProgress
+        let cornerRadius = min(5, barWidth / 2, fillHeight / 2)
+
+        return VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(isToday ? chartColor : barColor)
+                .frame(width: barWidth, height: fillHeight)
+        }
+        .frame(width: cellWidth, height: chartHeight)
     }
 
     private func visualAmount(for amount: Double) -> Double {

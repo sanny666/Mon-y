@@ -32,12 +32,22 @@ enum ReceiptInbox {
         }
     }
 
-    static func consume() -> PendingReceipt? {
+    /// Reads the pending receipt without removing it from the inbox.
+    static func peek() -> PendingReceipt? {
         guard let jpeg = jpegData(), !jpeg.isEmpty else { return nil }
-        let note = noteValue()
+        return PendingReceipt(jpeg: jpeg, note: noteValue())
+    }
+
+    static func consume() -> PendingReceipt? {
+        guard let receipt = peek() else { return nil }
+        clear()
+        return receipt
+    }
+
+    /// Clears the inbox after save or when the user explicitly dismisses the draft.
+    static func clear() {
         delete(account: jpegAccount)
         delete(account: noteAccount)
-        return PendingReceipt(jpeg: jpeg, note: note)
     }
 
     /// Copies a file the system handed the app ("Open in monёy") into the inbox as JPEG.

@@ -9,6 +9,7 @@ struct TransactionEditorView: View {
     let transaction: Transaction?
     var initialJPEG: Data? = nil
     var initialNote: String? = nil
+    var fromSharedInbox: Bool = false
 
     @State private var amountText = ""
     @State private var type: TransactionType = .expense
@@ -20,6 +21,9 @@ struct TransactionEditorView: View {
     @State private var attachmentPreview: UIImage?
     @State private var pendingJPEG: Data?
     @State private var photoItem: PhotosPickerItem?
+    @State private var showPhotoPicker = false
+    @State private var showReceiptPreview = false
+    @State private var didLoad = false
     @State private var selectedAccountID: UUID?
     @State private var selectedToAccountID: UUID?
     @State private var selectedRootCategoryID: UUID?
@@ -107,14 +111,28 @@ struct TransactionEditorView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ModalCloseToolbarItem { dismiss() }
+                ModalCloseToolbarItem { closeEditor() }
                 ModalConfirmToolbarItem(isDisabled: !canSave) { save() }
                 ToolbarItem(placement: .principal) {
                     typeSlider
                 }
             }
         }
-        .onAppear(perform: load)
+        .onAppear {
+            guard !didLoad else { return }
+            didLoad = true
+            load()
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .images)
+        .overlay {
+            if showReceiptPreview, let preview = attachmentPreview {
+                ReceiptImagePreview(image: preview) {
+                    showReceiptPreview = false
+                }
+                .transition(.opacity)
+                .zIndex(10)
+            }
+        }
         .onChange(of: type) { _, _ in
             selectedRootCategoryID = filteredRoots.first?.id
             selectedSubcategoryID = nil
@@ -198,30 +216,36 @@ struct TransactionEditorView: View {
     private var photoEditor: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let preview = attachmentPreview {
-                Image(uiImage: preview)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 160)
-                    .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(alignment: .topTrailing) {
-                        Button {
-                            attachmentURL = nil
-                            attachmentPreview = nil
-                            pendingJPEG = nil
-                            photoItem = nil
-                        } label: {
-                            Image(systemName: "trash.circle.fill")
-                                .font(.title2)
-                                .symbolRenderingMode(.palette)
-                                .foregroundStyle(.white, .red)
-                                .padding(8)
-                        }
+                ZStack(alignment: .topTrailing) {
+                    Button {
+                        showReceiptPreview = true
+                    } label: {
+                        Image(uiImage: preview)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 160)
+                            .clipped()
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        removeAttachment()
+                    } label: {
+                        Image(systemName: "trash.circle.fill")
+                            .font(.title2)
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, .red)
+                            .padding(8)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
 
-            PhotosPicker(selection: $photoItem, matching: .images) {
+            Button {
+                showPhotoPicker = true
+            } label: {
                 Label(
                     attachmentPreview == nil ? "Прикрепить фото" : "Заменить фото",
                     systemImage: "photo.on.rectangle"
@@ -285,8 +309,13 @@ struct TransactionEditorView: View {
                 selectedAccountID = accounts.first?.id
                 selectedRootCategoryID = filteredRoots.first?.id
                 if let initialJPEG, let image = UIImage(data: initialJPEG) {
-                    pendingJPEG = initialJPEG
                     attachmentPreview = image
+                    if let savedURL = try? AttachmentStore.saveLocalJPEG(initialJPEG) {
+                        attachmentURL = savedURL
+                        pendingJPEG = nil
+                    } else {
+                        pendingJPEG = initialJPEG
+                    }
                     Task { await applyOCR(from: initialJPEG) }
                 }
                 if let initialNote, note.isEmpty {
@@ -313,13 +342,37 @@ struct TransactionEditorView: View {
             if let data = try await item.loadTransferable(type: Data.self),
                let image = UIImage(data: data),
                let jpeg = image.jpegData(compressionQuality: 0.8) {
-                pendingJPEG = jpeg
+                if let savedURL = try? AttachmentStore.saveLocalJPEG(jpeg) {
+                    attachmentURL = savedURL
+                    pendingJPEG = nil
+                } else {
+                    pendingJPEG = jpeg
+                }
                 attachmentPreview = image
+                photoItem = nil
                 await applyOCR(from: jpeg)
             }
         } catch {
             errorMessage = "Не удалось загрузить фото"
         }
+    }
+
+    private func removeAttachment() {
+        if fromSharedInbox {
+            ReceiptInbox.clear()
+        }
+        attachmentURL = nil
+        attachmentPreview = nil
+        pendingJPEG = nil
+        photoItem = nil
+        showReceiptPreview = false
+    }
+
+    private func closeEditor() {
+        if fromSharedInbox {
+            ReceiptInbox.clear()
+        }
+        dismiss()
     }
 
     @MainActor
@@ -403,6 +456,9 @@ struct TransactionEditorView: View {
             }
             container.recalculateBudgets()
             container.notifyChange()
+            if fromSharedInbox {
+                ReceiptInbox.clear()
+            }
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

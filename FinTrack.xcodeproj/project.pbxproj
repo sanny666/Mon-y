@@ -13,6 +13,7 @@
 		0956E77BF9BD394752346907 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7689D08963D9E0644C80649D /* Assets.xcassets */; };
 		122D9387F0716F0E88ED78BE /* CSVExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5482E339A640D56A318B3092 /* CSVExportService.swift */; };
 		C4E91A72B8D05F3E16A7C284 /* ReceiptOCR.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3D80B61A7C94E2D05B6F173 /* ReceiptOCR.swift */; };
+		D7F8A2B19C4E6D0A5B3E8127 /* ReceiptImagePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F9B3C24D5F7E1B6C4F9238 /* ReceiptImagePreview.swift */; };
 		136EA57DD3663359B01E239B /* AddTransactionIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D78FE93BDAC755F7DDDAA9EF /* AddTransactionIntent.swift */; };
 		1535203A29A86714A0FCC6EE /* Goal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E62913BEBCFC895969A623 /* Goal.swift */; };
 		1931663D04FE76ACF8882593 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0164D45747BDF6D844DFAB90 /* APIModels.swift */; };
@@ -159,6 +160,7 @@
 		52D9DAA26AF841073305FE2B /* AddTransactionControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTransactionControl.swift; sourceTree = "<group>"; };
 		5482E339A640D56A318B3092 /* CSVExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVExportService.swift; sourceTree = "<group>"; };
 		A3D80B61A7C94E2D05B6F173 /* ReceiptOCR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptOCR.swift; sourceTree = "<group>"; };
+		E8F9B3C24D5F7E1B6C4F9238 /* ReceiptImagePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptImagePreview.swift; sourceTree = "<group>"; };
 		59F04F2C86DDAF6128F6FA0C /* AppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContainer.swift; sourceTree = "<group>"; };
 		5C270EE3458535D3E695B5C6 /* WidgetSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotStore.swift; sourceTree = "<group>"; };
 		5CACFFB6CD9B8D06A29C7DB4 /* MonyDeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonyDeepLink.swift; sourceTree = "<group>"; };
@@ -466,6 +468,7 @@
 			isa = PBXGroup;
 			children = (
 				96506B3ECC395F1C6AF1698A /* ActivityShareSheet.swift */,
+				E8F9B3C24D5F7E1B6C4F9238 /* ReceiptImagePreview.swift */,
 				32BBF0F15EC7911B6990AA5B /* SharedComponents.swift */,
 				D08ED04EDE398055C646F0E4 /* SkeletonViews.swift */,
 			);
@@ -647,6 +650,7 @@
 				A21D9069025C847B47F7FADE /* BudgetsView.swift in Sources */,
 				122D9387F0716F0E88ED78BE /* CSVExportService.swift in Sources */,
 				C4E91A72B8D05F3E16A7C284 /* ReceiptOCR.swift in Sources */,
+				D7F8A2B19C4E6D0A5B3E8127 /* ReceiptImagePreview.swift in Sources */,
 				22A5E2670E4CC179C6F9EA07 /* CategoriesView.swift in Sources */,
 				4E799AAC5FE4E53DE66E999A /* Category.swift in Sources */,
 				2A8AC262C5CF29D73BB0F011 /* Config.swift in Sources */,

@@ -42,11 +42,9 @@ struct RootView: View {
     @State private var chartEntrance = ChartEntranceController()
     @State private var lockController = AppLockController()
     @State private var showPrivacyCover = false
-    @State private var showAddTransaction = false
     @State private var pendingAddTransaction = false
     @State private var isQuickAddFromDeepLink = false
-    @State private var pendingReceiptJPEG: Data?
-    @State private var pendingReceiptNote: String?
+    @State private var quickAddPresentation: QuickAddPresentation?
 
     private var preferredScheme: ColorScheme? {
         switch AppTheme(rawValue: appThemeRaw) ?? .system {
@@ -113,16 +111,15 @@ struct RootView: View {
                     .zIndex(3)
             }
         }
-        .fullScreenCover(isPresented: $showAddTransaction, onDismiss: {
+        .fullScreenCover(item: $quickAddPresentation, onDismiss: {
             isQuickAddFromDeepLink = false
-            pendingReceiptJPEG = nil
-            pendingReceiptNote = nil
-        }) {
+        }) { presentation in
             if let appContainer {
                 TransactionEditorView(
                     transaction: nil,
-                    initialJPEG: pendingReceiptJPEG,
-                    initialNote: pendingReceiptNote
+                    initialJPEG: presentation.receipt?.jpeg,
+                    initialNote: presentation.receipt?.note,
+                    fromSharedInbox: presentation.receipt != nil
                 )
                     .environment(appContainer)
                     .environment(lockController)
@@ -235,14 +232,19 @@ struct RootView: View {
 
     private func presentAddTransactionIfPossible() {
         guard pendingAddTransaction else { return }
+        guard quickAddPresentation == nil else {
+            pendingAddTransaction = false
+            return
+        }
         guard hasCompletedOnboarding, appContainer?.isLoggedIn == true else { return }
         // Deep-link / Action Button: open editor immediately without Face ID / PIN.
         lockController.unlockWithoutAuth()
         pendingAddTransaction = false
-        if let receipt = ReceiptInbox.consume() {
-            pendingReceiptJPEG = receipt.jpeg
-            pendingReceiptNote = receipt.note
-        }
-        showAddTransaction = true
+        quickAddPresentation = QuickAddPresentation(receipt: ReceiptInbox.peek())
     }
+}
+
+private struct QuickAddPresentation: Identifiable {
+    let id = UUID()
+    let receipt: PendingReceipt?
 }
