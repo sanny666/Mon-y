@@ -46,6 +46,10 @@
 	<string>monёy использует Face ID, чтобы защитить доступ к финансам.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>monёy использует фото для вложений к транзакциям (чеки).</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>monёy записывает голос, чтобы добавить транзакцию по фразе.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>monёy распознаёт речь на устройстве, чтобы разобрать сумму и описание транзакции.</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

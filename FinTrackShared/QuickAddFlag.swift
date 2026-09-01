@@ -1,6 +1,11 @@
 import Foundation
 import Security
 
+enum QuickAddKind: String {
+    case add
+    case voice
+}
+
 /// Cross-process flag: Control / Action Button intent (widget) → main app.
 /// Uses the shared keychain access group already entitled on both targets.
 /// (`OpenURLIntent` with a custom scheme does not deliver `onOpenURL` from Controls.)
@@ -12,8 +17,8 @@ enum QuickAddFlag {
 
     static let didRequestNotification = Notification.Name("mony.quickAddTransaction")
 
-    static func markPending() {
-        let data = Data("1".utf8)
+    static func markPending(kind: QuickAddKind = .add) {
+        let data = Data(kind.rawValue.utf8)
         let query: [String: Any] = baseQuery()
         SecItemDelete(query as CFDictionary)
 
@@ -25,8 +30,8 @@ enum QuickAddFlag {
         NotificationCenter.default.post(name: didRequestNotification, object: nil)
     }
 
-    /// Returns true once if a pending quick-add was set, then clears it.
-    static func consumePending() -> Bool {
+    /// Returns the pending kind once, then clears it. Legacy `"1"` maps to `.add`.
+    static func consumePending() -> QuickAddKind? {
         let query: [String: Any] = baseQuery().merging([
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
@@ -38,11 +43,13 @@ enum QuickAddFlag {
 
         guard status == errSecSuccess,
               let data = result as? Data,
-              String(data: data, encoding: .utf8) == "1"
+              let raw = String(data: data, encoding: .utf8)
         else {
-            return false
+            return nil
         }
-        return true
+
+        if raw == "1" { return .add }
+        return QuickAddKind(rawValue: raw)
     }
 
     private static func baseQuery() -> [String: Any] {

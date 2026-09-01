@@ -27,6 +27,9 @@ final class Category {
     @Relationship(deleteRule: .nullify, inverse: \RecurringTransaction.category)
     var recurringTemplates: [RecurringTransaction] = []
 
+    @Relationship(deleteRule: .nullify, inverse: \ItemDictionaryEntry.category)
+    var dictionaryEntries: [ItemDictionaryEntry] = []
+
     var type: CategoryType {
         get { CategoryType(rawValue: typeRaw) ?? .expense }
         set { typeRaw = newValue.rawValue }

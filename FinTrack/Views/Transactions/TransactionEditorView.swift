@@ -31,6 +31,9 @@ struct TransactionEditorView: View {
     @State private var accounts: [Account] = []
     @State private var rootCategories: [Category] = []
     @State private var errorMessage: String?
+    @State private var showVoiceCapture = false
+    @State private var voiceDictionaryItemName: String?
+    @State private var voiceMatchHint: String?
 
     private var filteredRoots: [Category] {
         guard type != .transfer else { return [] }
@@ -106,6 +109,11 @@ struct TransactionEditorView: View {
                     tagsEditor
                     TextField("Комментарий", text: $note, axis: .vertical)
                         .lineLimit(3...6)
+                    if let voiceMatchHint {
+                        Text(voiceMatchHint)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     photoEditor
                 }
             }
@@ -113,6 +121,14 @@ struct TransactionEditorView: View {
             .toolbar {
                 ModalCloseToolbarItem { closeEditor() }
                 ModalConfirmToolbarItem(isDisabled: !canSave) { save() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showVoiceCapture = true
+                    } label: {
+                        Image(systemName: "mic.fill")
+                    }
+                    .accessibilityLabel("Голосовой ввод")
+                }
                 ToolbarItem(placement: .principal) {
                     typeSlider
                 }
@@ -150,6 +166,11 @@ struct TransactionEditorView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "")
+        }
+        .sheet(isPresented: $showVoiceCapture) {
+            VoiceCaptureView { text in
+                Task { await applyVoice(from: text) }
+            }
         }
     }
 
@@ -306,7 +327,7 @@ struct TransactionEditorView: View {
                     }
                 }
             } else {
-                selectedAccountID = accounts.first?.id
+                selectedAccountID = DefaultAccountResolver.resolvedID(from: accounts)
                 selectedRootCategoryID = filteredRoots.first?.id
                 if let initialJPEG, let image = UIImage(data: initialJPEG) {
                     attachmentPreview = image
@@ -409,6 +430,58 @@ struct TransactionEditorView: View {
         }
     }
 
+    @MainActor
+    private func applyVoice(from text: String) async {
+        do {
+            let result = try container.parseVoiceTranscript(text)
+            type = result.type
+            date = result.date
+
+            if let amount = result.amount, amount > 0 {
+                if abs(amount.rounded() - amount) < 0.001 {
+                    amountText = String(Int(amount.rounded()))
+                } else {
+                    amountText = String(format: "%.2f", amount)
+                }
+            }
+
+            if !result.itemName.isEmpty {
+                note = result.itemName
+                voiceDictionaryItemName = result.itemName
+            }
+
+            voiceMatchHint = result.matchHint
+
+            if let accountID = result.accountID {
+                selectedAccountID = accountID
+            }
+            if let toAccountID = result.toAccountID {
+                selectedToAccountID = toAccountID
+            }
+
+            if let categoryID = result.matchedCategoryID {
+                applyCategoryID(categoryID)
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func applyCategoryID(_ categoryID: UUID) {
+        for root in rootCategories {
+            if root.id == categoryID {
+                selectedRootCategoryID = root.id
+                selectedSubcategoryID = nil
+                return
+            }
+            if let child = root.children.first(where: { $0.id == categoryID }) {
+                selectedRootCategoryID = root.id
+                selectedSubcategoryID = child.id
+                return
+            }
+        }
+    }
+
     private func save() {
         commitTagDraft()
         let amount = Double(amountText.replacingOccurrences(of: ",", with: ".")) ?? 0
@@ -454,6 +527,14 @@ struct TransactionEditorView: View {
                 )
                 try container.transactions.save(item)
             }
+
+            if type != .transfer,
+               let category,
+               let dictionaryName = voiceDictionaryItemName ?? (note.isEmpty ? nil : note.trimmingCharacters(in: .whitespacesAndNewlines)),
+               !dictionaryName.isEmpty {
+                try container.itemDictionary.upsert(name: dictionaryName, category: category)
+            }
+
             container.recalculateBudgets()
             container.notifyChange()
             if fromSharedInbox {

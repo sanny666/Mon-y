@@ -13,6 +13,13 @@
 		0956E77BF9BD394752346907 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7689D08963D9E0644C80649D /* Assets.xcassets */; };
 		122D9387F0716F0E88ED78BE /* CSVExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5482E339A640D56A318B3092 /* CSVExportService.swift */; };
 		C4E91A72B8D05F3E16A7C284 /* ReceiptOCR.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3D80B61A7C94E2D05B6F173 /* ReceiptOCR.swift */; };
+		E0F1A2B3C4D5678901234567 /* ItemDictionaryEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6789012345678 /* ItemDictionaryEntry.swift */; };
+		E1F2A3B4C5D6789012345678 /* TransactionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2A3B4C5D6E7890123456789 /* TransactionParser.swift */; };
+		E2F3A4B5C6D7890123456789 /* VoiceInputService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A4B5C6D7E8901234567890 /* VoiceInputService.swift */; };
+		E3F4A5B6C7D8901234567890 /* VoiceCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A5B6C7D8E9012345678901 /* VoiceCaptureView.swift */; };
+		A9B8C7D6E5F4039281706152 /* VoiceWaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A8C7D6E5F4039281706153 /* VoiceWaveformView.swift */; };
+		C8D7E6F5A4B3029180765432 /* VoiceWaveformStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8E7F6A5B4C3029180765433 /* VoiceWaveformStore.swift */; };
+		E4F5A6B7C8D9012345678901 /* VoiceTransactionConfirmView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A6B7C8D9E0123456789012 /* VoiceTransactionConfirmView.swift */; };
 		D7F8A2B19C4E6D0A5B3E8127 /* ReceiptImagePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F9B3C24D5F7E1B6C4F9238 /* ReceiptImagePreview.swift */; };
 		136EA57DD3663359B01E239B /* AddTransactionIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D78FE93BDAC755F7DDDAA9EF /* AddTransactionIntent.swift */; };
 		1535203A29A86714A0FCC6EE /* Goal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E62913BEBCFC895969A623 /* Goal.swift */; };
@@ -78,6 +85,8 @@
 		C726ED442FD766D58EB4C6D0 /* OnboardingSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85C8B603DBB94F91C6014548 /* OnboardingSetupView.swift */; };
 		CCD9E91583EBAAE660EF22BB /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E192D458D7355D6EB165821A /* AnalyticsService.swift */; };
 		CD6BB54B4C95455EF6B51C82 /* AddTransactionControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D9DAA26AF841073305FE2B /* AddTransactionControl.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* VoiceTransactionControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F60718293A4B5C6D /* VoiceTransactionControl.swift */; };
+		C3D4E5F60718293A4B5C6D7E /* VoiceQuickAddFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F60718293A4B5C6D7E8F /* VoiceQuickAddFlowView.swift */; };
 		CEA1734DD189A42331D9F8C8 /* SwiftDataRepositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8989DC0732EBEA301E504B4 /* SwiftDataRepositories.swift */; };
 		CFBBD8BC0A12CB884FACBFB3 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64D370555B4485823A511F65 /* AppGroup.swift */; };
 		D279679624A897D417B4E062 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33FA24B6380413621F14B4F7 /* WidgetSnapshot.swift */; };
@@ -160,8 +169,17 @@
 		4B5B068281F079F2EE9D6B94 /* Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Helpers.swift; sourceTree = "<group>"; };
 		4FA284B49AFD744E7F3E4652 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		52D9DAA26AF841073305FE2B /* AddTransactionControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTransactionControl.swift; sourceTree = "<group>"; };
+		B2C3D4E5F60718293A4B5C6D /* VoiceTransactionControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceTransactionControl.swift; sourceTree = "<group>"; };
+		D4E5F60718293A4B5C6D7E8F /* VoiceQuickAddFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceQuickAddFlowView.swift; sourceTree = "<group>"; };
 		5482E339A640D56A318B3092 /* CSVExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVExportService.swift; sourceTree = "<group>"; };
 		A3D80B61A7C94E2D05B6F173 /* ReceiptOCR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptOCR.swift; sourceTree = "<group>"; };
+		F1A2B3C4D5E6789012345678 /* ItemDictionaryEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemDictionaryEntry.swift; sourceTree = "<group>"; };
+		F2A3B4C5D6E7890123456789 /* TransactionParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionParser.swift; sourceTree = "<group>"; };
+		F3A4B5C6D7E8901234567890 /* VoiceInputService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputService.swift; sourceTree = "<group>"; };
+		F4A5B6C7D8E9012345678901 /* VoiceCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCaptureView.swift; sourceTree = "<group>"; };
+		B9A8C7D6E5F4039281706153 /* VoiceWaveformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceWaveformView.swift; sourceTree = "<group>"; };
+		D8E7F6A5B4C3029180765433 /* VoiceWaveformStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceWaveformStore.swift; sourceTree = "<group>"; };
+		F5A6B7C8D9E0123456789012 /* VoiceTransactionConfirmView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceTransactionConfirmView.swift; sourceTree = "<group>"; };
 		E8F9B3C24D5F7E1B6C4F9238 /* ReceiptImagePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptImagePreview.swift; sourceTree = "<group>"; };
 		59F04F2C86DDAF6128F6FA0C /* AppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContainer.swift; sourceTree = "<group>"; };
 		5C270EE3458535D3E695B5C6 /* WidgetSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotStore.swift; sourceTree = "<group>"; };
@@ -333,6 +351,7 @@
 			isa = PBXGroup;
 			children = (
 				52D9DAA26AF841073305FE2B /* AddTransactionControl.swift */,
+				B2C3D4E5F60718293A4B5C6D /* VoiceTransactionControl.swift */,
 				419D998DD51754005945C812 /* FinTrackWidget.entitlements */,
 				8EC32F027594698646619587 /* FinTrackWidget.swift */,
 				FD37DF8944DEB5FCB3908F52 /* FinTrackWidgetBundle.swift */,
@@ -377,6 +396,9 @@
 				B91C4E72A8D15F6E40C2A917 /* BankStatementParser.swift */,
 				5482E339A640D56A318B3092 /* CSVExportService.swift */,
 				A3D80B61A7C94E2D05B6F173 /* ReceiptOCR.swift */,
+				F2A3B4C5D6E7890123456789 /* TransactionParser.swift */,
+				F3A4B5C6D7E8901234567890 /* VoiceInputService.swift */,
+				D8E7F6A5B4C3029180765433 /* VoiceWaveformStore.swift */,
 				4B5B068281F079F2EE9D6B94 /* Helpers.swift */,
 				7DA364FF2EBDEB63DFFABA5C /* NotificationService.swift */,
 				3E3C00909642416659814589 /* RecurringService.swift */,
@@ -447,6 +469,7 @@
 				12E62913BEBCFC895969A623 /* Goal.swift */,
 				2FB73684BE58709BA98D84D2 /* RecurringTransaction.swift */,
 				F1829FFD6EB0076039DC19BA /* Transaction.swift */,
+				F1A2B3C4D5E6789012345678 /* ItemDictionaryEntry.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -502,6 +525,10 @@
 			isa = PBXGroup;
 			children = (
 				96DED0CA89EC12F174FA369B /* TransactionEditorView.swift */,
+				F4A5B6C7D8E9012345678901 /* VoiceCaptureView.swift */,
+				B9A8C7D6E5F4039281706153 /* VoiceWaveformView.swift */,
+				F5A6B7C8D9E0123456789012 /* VoiceTransactionConfirmView.swift */,
+				D4E5F60718293A4B5C6D7E8F /* VoiceQuickAddFlowView.swift */,
 				A7BCF7166DD04657EC3B3455 /* TransactionsView.swift */,
 			);
 			path = Transactions;
@@ -656,6 +683,14 @@
 				A21D9069025C847B47F7FADE /* BudgetsView.swift in Sources */,
 				122D9387F0716F0E88ED78BE /* CSVExportService.swift in Sources */,
 				C4E91A72B8D05F3E16A7C284 /* ReceiptOCR.swift in Sources */,
+				E0F1A2B3C4D5678901234567 /* ItemDictionaryEntry.swift in Sources */,
+				E1F2A3B4C5D6789012345678 /* TransactionParser.swift in Sources */,
+				E2F3A4B5C6D7890123456789 /* VoiceInputService.swift in Sources */,
+				E3F4A5B6C7D8901234567890 /* VoiceCaptureView.swift in Sources */,
+				A9B8C7D6E5F4039281706152 /* VoiceWaveformView.swift in Sources */,
+				C8D7E6F5A4B3029180765432 /* VoiceWaveformStore.swift in Sources */,
+				E4F5A6B7C8D9012345678901 /* VoiceTransactionConfirmView.swift in Sources */,
+				C3D4E5F60718293A4B5C6D7E /* VoiceQuickAddFlowView.swift in Sources */,
 				D7F8A2B19C4E6D0A5B3E8127 /* ReceiptImagePreview.swift in Sources */,
 				22A5E2670E4CC179C6F9EA07 /* CategoriesView.swift in Sources */,
 				4E799AAC5FE4E53DE66E999A /* Category.swift in Sources */,
@@ -726,6 +761,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CD6BB54B4C95455EF6B51C82 /* AddTransactionControl.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* VoiceTransactionControl.swift in Sources */,
 				B6590A386845A1D0E63333F6 /* AddTransactionIntent.swift in Sources */,
 				CFBBD8BC0A12CB884FACBFB3 /* AppGroup.swift in Sources */,
 				09031654CD68B78C9C3A8767 /* FinTrackWidget.swift in Sources */,

@@ -1,8 +1,10 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @Environment(AppContainer.self) private var container
     @Environment(AppLockController.self) private var lockController
     @AppStorage(AppStorageKeys.defaultCurrency) private var defaultCurrency = AppCurrency.kzt.rawValue
+    @AppStorage(AppStorageKeys.defaultAccountID) private var defaultAccountID = ""
     @AppStorage(AppStorageKeys.appTheme) private var appThemeRaw = AppTheme.system.rawValue
     @AppStorage(AppStorageKeys.appAccentHex) private var appAccentHex = AppAccent.defaultHex
     @AppStorage(AppStorageKeys.faceIDEnabled) private var faceIDEnabled = false
@@ -13,6 +15,7 @@ struct SettingsView: View {
     @State private var changePINBuffer = ""
     @State private var changePINNew = ""
     @State private var changePINError: String?
+    @State private var accounts: [Account] = []
 
     private enum ChangePINPhase {
         case verify
@@ -35,6 +38,14 @@ struct SettingsView: View {
                 Picker("Валюта по умолчанию", selection: $defaultCurrency) {
                     ForEach(AppCurrency.allCases) { currency in
                         Text(currency.title).tag(currency.rawValue)
+                    }
+                }
+
+                if !accounts.isEmpty {
+                    Picker("Счёт по умолчанию", selection: $defaultAccountID) {
+                        ForEach(accounts, id: \.id) { account in
+                            Text(account.name).tag(account.id.uuidString)
+                        }
                     }
                 }
             }
@@ -123,6 +134,12 @@ struct SettingsView: View {
                 }
             }
             .presentationDetents([.large])
+        }
+        .onAppear {
+            accounts = (try? container.accounts.fetchAll()) ?? []
+            if defaultAccountID.isEmpty, let first = accounts.first {
+                defaultAccountID = first.id.uuidString
+            }
         }
     }
 

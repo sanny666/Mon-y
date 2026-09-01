@@ -12,5 +12,14 @@ struct MonyShortcuts: AppShortcutsProvider {
             shortTitle: "Транзакция",
             systemImageName: "plus"
         )
+        AppShortcut(
+            intent: VoiceTransactionIntent(),
+            phrases: [
+                "Добавить голосом в \(.applicationName)",
+                "Голосовая транзакция в \(.applicationName)"
+            ],
+            shortTitle: "Голос",
+            systemImageName: "mic.fill"
+        )
     }
 }

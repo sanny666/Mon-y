@@ -4,6 +4,7 @@ import UIKit
 
 enum AppStorageKeys {
     static let hasCompletedOnboarding = "hasCompletedOnboarding"
+    static let defaultAccountID = "defaultAccountID"
     static let defaultCurrency = "defaultCurrency"
     static let appTheme = "appTheme"
     static let appAccentHex = "appAccentHex"
@@ -126,6 +127,17 @@ enum SemanticIcon {
     static let export = Color(hex: "#5C6BC0")
     static let bank = Color(hex: "#2F6FED")
     static let settings = Color(hex: "#8E8E93")
+}
+
+enum DefaultAccountResolver {
+    static func resolvedID(from accounts: [Account]) -> UUID? {
+        if let stored = UserDefaults.standard.string(forKey: AppStorageKeys.defaultAccountID),
+           let id = UUID(uuidString: stored),
+           accounts.contains(where: { $0.id == id }) {
+            return id
+        }
+        return accounts.first?.id
+    }
 }
 
 /// Local file helpers for receipt photos until remote upload is wired.

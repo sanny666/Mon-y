@@ -309,3 +309,78 @@ final class SwiftDataRecurringTransactionRepository: RecurringTransactionReposit
         try context.save()
     }
 }
+
+final class SwiftDataItemDictionaryRepository: ItemDictionaryRepository {
+    private let context: ModelContext
+
+    init(context: ModelContext) {
+        self.context = context
+    }
+
+    func fetchAll() throws -> [ItemDictionaryEntry] {
+        let descriptor = FetchDescriptor<ItemDictionaryEntry>(
+            predicate: #Predicate { $0.isDeleted == false },
+            sortBy: [SortDescriptor(\.canonicalName)]
+        )
+        return try context.fetch(descriptor)
+    }
+
+    func findMatch(for name: String) throws -> ItemDictionaryEntry? {
+        let normalized = VoiceStringMatching.normalizeItemName(name)
+        guard !normalized.isEmpty else { return nil }
+
+        let entries = try fetchAll()
+
+        for entry in entries {
+            if entry.canonicalName == normalized || entry.aliases.contains(normalized) {
+                return entry
+            }
+        }
+
+        let stemmed = VoiceStringMatching.stem(normalized)
+        var best: (entry: ItemDictionaryEntry, distance: Int)?
+
+        for entry in entries {
+            let candidates = [entry.canonicalName] + entry.aliases
+            for candidate in candidates {
+                let candidateStem = VoiceStringMatching.stem(candidate)
+                let distance = VoiceStringMatching.levenshteinDistance(stemmed, candidateStem)
+                let maxLength = max(stemmed.count, candidateStem.count)
+                let threshold = max(2, Int(Double(maxLength) * 0.3))
+                guard distance <= threshold else { continue }
+
+                if let current = best {
+                    if distance < current.distance
+                        || (distance == current.distance && entry.usageCount > current.entry.usageCount) {
+                        best = (entry, distance)
+                    }
+                } else {
+                    best = (entry, distance)
+                }
+            }
+        }
+
+        return best?.entry
+    }
+
+    func upsert(name: String, category: Category) throws {
+        let normalized = VoiceStringMatching.normalizeItemName(name)
+        guard !normalized.isEmpty else { return }
+
+        if let existing = try findMatch(for: normalized) {
+            existing.category = category
+            existing.usageCount += 1
+            existing.lastUsedAt = .now
+            existing.updatedAt = .now
+            existing.isSynced = false
+            try context.save()
+            return
+        }
+
+        let entry = ItemDictionaryEntry(canonicalName: normalized, category: category)
+        context.insert(entry)
+        entry.updatedAt = .now
+        entry.isSynced = false
+        try context.save()
+    }
+}

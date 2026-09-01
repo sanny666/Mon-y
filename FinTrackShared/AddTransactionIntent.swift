@@ -30,7 +30,41 @@ struct AddTransactionIntent: OpenIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        QuickAddFlag.markPending()
+        QuickAddFlag.markPending(kind: .add)
+        return .result()
+    }
+}
+
+/// Opens monёy to the voice transaction capture flow.
+@available(iOS 18.0, *)
+enum VoiceTransactionTarget: String, AppEnum {
+    case voiceInput
+
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Экран")
+    static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
+        .voiceInput: DisplayRepresentation(title: "Голосовой ввод")
+    ]
+}
+
+@available(iOS 18.0, *)
+struct VoiceTransactionIntent: OpenIntent {
+    static var title: LocalizedStringResource = "Голосовая транзакция"
+    static var description = IntentDescription("Открывает голосовой ввод транзакции в monёy")
+    static var isDiscoverable = true
+
+    @Parameter(title: "Target")
+    var target: VoiceTransactionTarget
+
+    init() {
+        self.target = .voiceInput
+    }
+
+    init(target: VoiceTransactionTarget) {
+        self.target = target
+    }
+
+    func perform() async throws -> some IntentResult {
+        QuickAddFlag.markPending(kind: .voice)
         return .result()
     }
 }

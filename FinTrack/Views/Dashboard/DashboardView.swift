@@ -5,6 +5,9 @@ struct DashboardView: View {
     @AppStorage(AppStorageKeys.defaultCurrency) private var defaultCurrency = AppCurrency.kzt.rawValue
     @State private var viewModel = DashboardViewModel()
     @State private var showAddTransaction = false
+    @State private var showVoiceCapture = false
+    @State private var voiceDraft: VoiceTransactionDraft?
+    @State private var voiceErrorMessage: String?
     @State private var isLoading = true
     var onOpenTransactions: () -> Void = {}
     var onOpenAnalytics: () -> Void = {}
@@ -54,12 +57,32 @@ struct DashboardView: View {
             .largeScreenTitle(Greeting.title(), subtitle: Greeting.subtitle(), showsProfile: true)
             .glassAddFAB(
                 isVisible: !isLoading,
-                accessibilityLabel: "Новая транзакция"
+                accessibilityLabel: "Новая транзакция",
+                micAction: { showVoiceCapture = true }
             ) {
                 showAddTransaction = true
             }
             .sheet(isPresented: $showAddTransaction) {
                 TransactionEditorView(transaction: nil)
+            }
+            .sheet(isPresented: $showVoiceCapture) {
+                VoiceCaptureView { text in
+                    handleVoiceTranscript(text)
+                }
+            }
+            .sheet(item: $voiceDraft) { draft in
+                VoiceTransactionConfirmView(
+                    transcript: draft.transcript,
+                    parseResult: draft.parseResult
+                )
+            }
+            .alert("Голосовой ввод", isPresented: Binding(
+                get: { voiceErrorMessage != nil },
+                set: { if !$0 { voiceErrorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(voiceErrorMessage ?? "")
             }
             .onAppear { FirstLoad.finish($isLoading, reload) }
             .onChange(of: container.refreshToken) { _, _ in
@@ -101,6 +124,15 @@ struct DashboardView: View {
                     }
                 }
             }
+        }
+    }
+
+    private func handleVoiceTranscript(_ text: String) {
+        do {
+            let result = try container.parseVoiceTranscript(text)
+            voiceDraft = VoiceTransactionDraft(transcript: text, parseResult: result)
+        } catch {
+            voiceErrorMessage = error.localizedDescription
         }
     }
 

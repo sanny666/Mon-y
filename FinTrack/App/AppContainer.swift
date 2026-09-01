@@ -18,10 +18,12 @@ final class AppContainer {
     private(set) var budgets: BudgetRepository
     private(set) var goals: GoalRepository
     private(set) var recurring: RecurringTransactionRepository
+    private(set) var itemDictionary: ItemDictionaryRepository
     let balanceService: BalanceService
     let budgetService: BudgetService
     let analyticsService: AnalyticsService
     let recurringService: RecurringService
+    let voiceInput = VoiceInputService()
 
     let authManager: AuthManager
     private let apiClient: APIClient
@@ -57,6 +59,7 @@ final class AppContainer {
         self.budgets = SwiftDataBudgetRepository(context: context)
         self.goals = SwiftDataGoalRepository(context: context)
         self.recurring = SwiftDataRecurringTransactionRepository(context: context)
+        self.itemDictionary = SwiftDataItemDictionaryRepository(context: context)
 
         let auth = self.authManager
         self.apiClient = APIClient(
@@ -355,6 +358,27 @@ final class AppContainer {
                 }
             }
         }
+    }
+
+    // MARK: - Voice parsing
+
+    func parseVoiceTranscript(_ text: String) throws -> VoiceParseResult {
+        let accounts = try accounts.fetchAll()
+        let defaultID = DefaultAccountResolver.resolvedID(from: accounts)
+        var result = TransactionParser.parse(
+            VoiceParseInput(
+                text: text,
+                accounts: accounts,
+                defaultAccountID: defaultID
+            )
+        )
+
+        if let match = try itemDictionary.findMatch(for: result.itemName) {
+            result.matchedCategoryID = match.category?.id
+            result.matchHint = "по совпадению с «\(match.canonicalName)»"
+        }
+
+        return result
     }
 
     // MARK: - Seed

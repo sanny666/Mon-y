@@ -56,3 +56,9 @@ protocol RecurringTransactionRepository {
     func save(_ item: RecurringTransaction) throws
     func delete(_ item: RecurringTransaction) throws
 }
+
+protocol ItemDictionaryRepository {
+    func fetchAll() throws -> [ItemDictionaryEntry]
+    func findMatch(for name: String) throws -> ItemDictionaryEntry?
+    func upsert(name: String, category: Category) throws
+}

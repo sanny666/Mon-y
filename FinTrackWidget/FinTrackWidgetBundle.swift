@@ -7,6 +7,7 @@ struct FinTrackWidgetBundle: WidgetBundle {
         FinTrackWidget()
         if #available(iOS 18.0, *) {
             AddTransactionControl()
+            VoiceTransactionControl()
         }
     }
 }

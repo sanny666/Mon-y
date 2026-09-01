@@ -242,17 +242,54 @@ struct GlassAddButton: View {
     }
 }
 
+struct GlassMicButton: View {
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                Button(action: action) {
+                    Image(systemName: "mic.fill")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .controlSize(.regular)
+            } else {
+                Button(action: action) {
+                    Image(systemName: "mic.fill")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 44, height: 44)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: Circle())
+                        .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
+                }
+            }
+        }
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
 private struct GlassAddFABModifier: ViewModifier {
     var isVisible: Bool = true
     let accessibilityLabel: String
+    var micAccessibilityLabel: String = "Голосовой ввод"
+    var micAction: (() -> Void)? = nil
     let action: () -> Void
 
     func body(content: Content) -> some View {
         content.overlay(alignment: .bottomTrailing) {
             if isVisible {
-                GlassAddButton(accessibilityLabel: accessibilityLabel, action: action)
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 20)
+                VStack(spacing: 12) {
+                    if let micAction {
+                        GlassMicButton(accessibilityLabel: micAccessibilityLabel, action: micAction)
+                    }
+                    GlassAddButton(accessibilityLabel: accessibilityLabel, action: action)
+                }
+                .padding(.trailing, 20)
+                .padding(.bottom, 20)
             }
         }
     }
@@ -262,11 +299,15 @@ extension View {
     func glassAddFAB(
         isVisible: Bool = true,
         accessibilityLabel: String,
+        micAccessibilityLabel: String = "Голосовой ввод",
+        micAction: (() -> Void)? = nil,
         action: @escaping () -> Void
     ) -> some View {
         modifier(GlassAddFABModifier(
             isVisible: isVisible,
             accessibilityLabel: accessibilityLabel,
+            micAccessibilityLabel: micAccessibilityLabel,
+            micAction: micAction,
             action: action
         ))
     }

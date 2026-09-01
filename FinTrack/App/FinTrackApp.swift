@@ -35,7 +35,8 @@ struct FinTrackApp: App {
             Transaction.self,
             Budget.self,
             Goal.self,
-            RecurringTransaction.self
+            RecurringTransaction.self,
+            ItemDictionaryEntry.self
         ])
         let configuration = ModelConfiguration(isStoredInMemoryOnly: false)
         do {
@@ -57,9 +58,9 @@ struct RootView: View {
     @State private var chartEntrance = ChartEntranceController()
     @State private var lockController = AppLockController()
     @State private var showPrivacyCover = false
-    @State private var pendingAddTransaction = false
+    @State private var pendingQuickAddKind: QuickAddKind?
     @State private var isQuickAddFromDeepLink = false
-    @State private var quickAddPresentation: QuickAddPresentation?
+    @State private var quickAddRoute: QuickAddRoute?
 
     private var preferredScheme: ColorScheme? {
         switch AppTheme(rawValue: appThemeRaw) ?? .system {
@@ -76,9 +77,9 @@ struct RootView: View {
             && (appContainer?.isLoggedIn ?? false)
     }
 
-    /// Action Button / Control deep link — skip Face ID / PIN until the editor dismisses.
+    /// Action Button / Control deep link — skip Face ID / PIN until the cover dismisses.
     private var isQuickAddActive: Bool {
-        isQuickAddFromDeepLink || pendingAddTransaction
+        isQuickAddFromDeepLink || pendingQuickAddKind != nil || quickAddRoute != nil
     }
 
     var body: some View {
@@ -86,6 +87,7 @@ struct RootView: View {
             if let appContainer {
                 rootContent(appContainer)
                     .environment(appContainer)
+                    .environment(appContainer.voiceInput)
                     .environment(lockController)
                     .id("session-\(appContainer.sessionEpoch)")
             } else {
@@ -126,17 +128,13 @@ struct RootView: View {
                     .zIndex(3)
             }
         }
-        .fullScreenCover(item: $quickAddPresentation, onDismiss: {
+        .fullScreenCover(item: $quickAddRoute, onDismiss: {
             isQuickAddFromDeepLink = false
-        }) { presentation in
+        }) { route in
             if let appContainer {
-                TransactionEditorView(
-                    transaction: nil,
-                    initialJPEG: presentation.receipt?.jpeg,
-                    initialNote: presentation.receipt?.note,
-                    fromSharedInbox: presentation.receipt != nil
-                )
+                quickAddContent(route: route, container: appContainer)
                     .environment(appContainer)
+                    .environment(appContainer.voiceInput)
                     .environment(lockController)
                     .preferredColorScheme(preferredScheme)
                     .tint(Color(hex: appAccentHex))
@@ -154,7 +152,16 @@ struct RootView: View {
             handleScenePhase(phase)
         }
         .onChange(of: lockController.isLocked) { _, _ in
-            presentAddTransactionIfPossible()
+            presentQuickAddIfPossible()
+        }
+        .onChange(of: hasCompletedOnboarding) { _, _ in
+            presentQuickAddIfPossible()
+        }
+        .onChange(of: appContainer?.sessionEpoch) { _, _ in
+            presentQuickAddIfPossible()
+        }
+        .onChange(of: appContainer?.isLoggedIn) { _, _ in
+            presentQuickAddIfPossible()
         }
         .onReceive(NotificationCenter.default.publisher(for: QuickAddFlag.didRequestNotification)) { _ in
             requestQuickAddFromBridge()
@@ -162,11 +169,30 @@ struct RootView: View {
         .onOpenURL { url in
             if url.isFileURL {
                 try? ReceiptInbox.ingestFile(at: url)
-                requestQuickAddFromBridge(consumeFlag: false)
+                requestQuickAddFromBridge(kind: .add, consumeFlag: false)
+                return
+            }
+            if MonyDeepLink.isVoiceTransaction(url) {
+                requestQuickAddFromBridge(kind: .voice, consumeFlag: false)
                 return
             }
             guard MonyDeepLink.isAddTransaction(url) else { return }
-            requestQuickAddFromBridge(consumeFlag: false)
+            requestQuickAddFromBridge(kind: .add, consumeFlag: false)
+        }
+    }
+
+    @ViewBuilder
+    private func quickAddContent(route: QuickAddRoute, container: AppContainer) -> some View {
+        switch route.kind {
+        case .editor(let receipt):
+            TransactionEditorView(
+                transaction: nil,
+                initialJPEG: receipt?.jpeg,
+                initialNote: receipt?.note,
+                fromSharedInbox: receipt != nil
+            )
+        case .voice:
+            VoiceQuickAddFlowView()
         }
     }
 
@@ -208,7 +234,7 @@ struct RootView: View {
             if shouldGateWithLock, lockController.isLocked, !isQuickAddActive {
                 Task { await attemptBiometricUnlock() }
             }
-            presentAddTransactionIfPossible()
+            presentQuickAddIfPossible()
         case .inactive:
             if shouldGateWithLock, !isQuickAddActive {
                 showPrivacyCover = true
@@ -226,40 +252,69 @@ struct RootView: View {
     private func attemptBiometricUnlock() async {
         guard faceIDEnabled, !isQuickAddActive else { return }
         _ = await lockController.authenticateWithBiometrics()
-        presentAddTransactionIfPossible()
+        presentQuickAddIfPossible()
     }
 
     /// Action Button / Control writes a shared keychain flag; share extension writes a receipt + flag.
     private func consumeQuickAddIfNeeded() {
-        let flagged = QuickAddFlag.consumePending()
-        guard flagged || ReceiptInbox.hasPending else { return }
-        requestQuickAddFromBridge(consumeFlag: false)
-    }
-
-    private func requestQuickAddFromBridge(consumeFlag: Bool = true) {
-        if consumeFlag {
-            _ = QuickAddFlag.consumePending()
-        }
-        isQuickAddFromDeepLink = true
-        pendingAddTransaction = true
-        presentAddTransactionIfPossible()
-    }
-
-    private func presentAddTransactionIfPossible() {
-        guard pendingAddTransaction else { return }
-        guard quickAddPresentation == nil else {
-            pendingAddTransaction = false
+        let kind = QuickAddFlag.consumePending()
+        if ReceiptInbox.hasPending {
+            // Receipt must not be lost — inbox always wins over a voice flag.
+            pendingQuickAddKind = .add
+            isQuickAddFromDeepLink = true
+            presentQuickAddIfPossible()
             return
         }
+        guard let kind else { return }
+        pendingQuickAddKind = kind
+        isQuickAddFromDeepLink = true
+        presentQuickAddIfPossible()
+    }
+
+    private func requestQuickAddFromBridge(kind: QuickAddKind? = nil, consumeFlag: Bool = true) {
+        let resolved: QuickAddKind
+        if consumeFlag {
+            resolved = QuickAddFlag.consumePending() ?? kind ?? .add
+        } else {
+            resolved = kind ?? .add
+        }
+
+        if ReceiptInbox.hasPending {
+            pendingQuickAddKind = .add
+        } else {
+            pendingQuickAddKind = resolved
+        }
+        isQuickAddFromDeepLink = true
+        presentQuickAddIfPossible()
+    }
+
+    private func presentQuickAddIfPossible() {
+        guard let kind = pendingQuickAddKind else { return }
         guard hasCompletedOnboarding, appContainer?.isLoggedIn == true else { return }
-        // Deep-link / Action Button: open editor immediately without Face ID / PIN.
+
+        // Deep-link / Action Button: open immediately without Face ID / PIN.
         lockController.unlockWithoutAuth()
-        pendingAddTransaction = false
-        quickAddPresentation = QuickAddPresentation(receipt: ReceiptInbox.peek())
+        pendingQuickAddKind = nil
+
+        // Last-write-wins: dismiss any open cover, then present with a fresh identity.
+        let next = QuickAddRoute(kind: kind == .voice ? .voice : .editor(ReceiptInbox.peek()))
+        if quickAddRoute != nil {
+            quickAddRoute = nil
+            DispatchQueue.main.async {
+                quickAddRoute = next
+            }
+        } else {
+            quickAddRoute = next
+        }
     }
 }
 
-private struct QuickAddPresentation: Identifiable {
+private struct QuickAddRoute: Identifiable {
+    enum Kind {
+        case editor(PendingReceipt?)
+        case voice
+    }
+
     let id = UUID()
-    let receipt: PendingReceipt?
+    let kind: Kind
 }
