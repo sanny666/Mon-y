@@ -5,12 +5,11 @@ struct BalanceService {
         var total = account.initialBalance
 
         for tx in account.transactions {
-            switch tx.type {
-            case .income:
-                total += tx.amount
-            case .expense:
+            if tx.type == .transfer {
                 total -= tx.amount
-            case .transfer:
+            } else if tx.type.increasesAccountBalance {
+                total += tx.amount
+            } else {
                 total -= tx.amount
             }
         }

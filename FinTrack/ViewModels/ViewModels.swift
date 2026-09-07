@@ -50,6 +50,8 @@ final class AnalyticsViewModel {
     var categorySlices: [CategoryExpenseSlice] = []
     var monthComparisons: [MonthIncomeExpense] = []
     var balancePoints: [BalancePoint] = []
+    var expenseHistory: [DailyAmountPoint] = []
+    var availableExpenseDays = 0
     var currencyCode: String = AppCurrency.kzt.rawValue
     var errorMessage: String?
 
@@ -70,6 +72,20 @@ final class AnalyticsViewModel {
                 transactions: transactions,
                 days: 90
             )
+            expenseHistory = container.analyticsService.dailyExpenses(
+                transactions: transactions,
+                days: 7 * 52
+            )
+            if let firstExpense = expenseHistory.first(where: { $0.amount > 0 }) {
+                let daysSinceFirstExpense = Calendar.current.dateComponents(
+                    [.day],
+                    from: Calendar.current.startOfDay(for: firstExpense.date),
+                    to: Calendar.current.startOfDay(for: .now)
+                ).day ?? 0
+                availableExpenseDays = min(7 * 52 - 1, max(0, daysSinceFirstExpense))
+            } else {
+                availableExpenseDays = 0
+            }
             currencyCode = accounts.first?.currency ?? defaultCurrency
             errorMessage = nil
         } catch {
@@ -302,6 +318,47 @@ final class GoalsViewModel {
     func delete(_ goal: Goal, container: AppContainer) {
         do {
             try container.goals.delete(goal)
+            reload(container: container)
+            container.notifyChange()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+@Observable
+@MainActor
+final class DebtsViewModel {
+    var debts: [Debt] = []
+    var errorMessage: String?
+
+    var openTheyOwe: [Debt] {
+        debts.filter { !$0.isClosed && $0.direction == .theyOwe }
+            .sorted { $0.personName.localizedCompare($1.personName) == .orderedAscending }
+    }
+
+    var openIOwe: [Debt] {
+        debts.filter { !$0.isClosed && $0.direction == .iOwe }
+            .sorted { $0.personName.localizedCompare($1.personName) == .orderedAscending }
+    }
+
+    var closed: [Debt] {
+        debts.filter(\.isClosed)
+            .sorted { $0.personName.localizedCompare($1.personName) == .orderedAscending }
+    }
+
+    func reload(container: AppContainer) {
+        do {
+            debts = try container.debts.fetchAll()
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func delete(_ debt: Debt, container: AppContainer) {
+        do {
+            try container.debts.delete(debt)
             reload(container: container)
             container.notifyChange()
         } catch {

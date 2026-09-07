@@ -19,6 +19,7 @@ final class Transaction {
     var account: Account?
     var toAccount: Account?
     var category: Category?
+    var debt: Debt?
 
     var type: TransactionType {
         get { TransactionType(rawValue: typeRaw) ?? .expense }
@@ -50,6 +51,7 @@ final class Transaction {
         account: Account? = nil,
         toAccount: Account? = nil,
         category: Category? = nil,
+        debt: Debt? = nil,
         attachmentURL: String? = nil,
         updatedAt: Date = .now,
         isSynced: Bool = false,
@@ -65,6 +67,7 @@ final class Transaction {
         self.account = account
         self.toAccount = toAccount
         self.category = category
+        self.debt = debt
         self.attachmentURL = attachmentURL
         self.updatedAt = updatedAt
         self.isSynced = isSynced

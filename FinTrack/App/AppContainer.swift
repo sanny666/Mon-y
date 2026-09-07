@@ -17,6 +17,7 @@ final class AppContainer {
     private(set) var transactions: TransactionRepository
     private(set) var budgets: BudgetRepository
     private(set) var goals: GoalRepository
+    private(set) var debts: DebtRepository
     private(set) var recurring: RecurringTransactionRepository
     private(set) var itemDictionary: ItemDictionaryRepository
     let balanceService: BalanceService
@@ -39,6 +40,7 @@ final class AppContainer {
 
     private let context: ModelContext
     var refreshToken: Int = 0
+    private(set) var totalBalance: Double = 0
 
     private var periodicSyncTask: Task<Void, Never>?
     private var debounceSyncTask: Task<Void, Never>?
@@ -60,6 +62,7 @@ final class AppContainer {
         self.transactions = SwiftDataTransactionRepository(context: context)
         self.budgets = SwiftDataBudgetRepository(context: context)
         self.goals = SwiftDataGoalRepository(context: context)
+        self.debts = SwiftDataDebtRepository(context: context)
         self.recurring = SwiftDataRecurringTransactionRepository(context: context)
         self.itemDictionary = SwiftDataItemDictionaryRepository(context: context)
 
@@ -85,11 +88,20 @@ final class AppContainer {
             enableSyncedMode()
         }
         startPeriodicMaintenance()
+        refreshTotalBalance()
     }
 
     func notifyChange() {
+        refreshTotalBalance()
         refreshToken += 1
         publishWidgetSnapshot()
+    }
+
+    private func refreshTotalBalance() {
+        guard let accounts = try? accounts.fetchAll() else { return }
+        let updatedBalance = balanceService.totalBalance(accounts: accounts)
+        guard updatedBalance != totalBalance else { return }
+        totalBalance = updatedBalance
     }
 
     /// Writes a lightweight JSON snapshot for the home-screen widget (App Group).

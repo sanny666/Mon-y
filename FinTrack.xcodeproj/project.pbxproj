@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AA7711000000000000000001 /* MoneyComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA7711000000000000000002 /* MoneyComponents.swift */; };
 		04286FFD16962F9112C44629 /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC57CC29BF5D65D6A3E6AECA /* AuthManager.swift */; };
 		057AA97896698103ACD8A633 /* TransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7BCF7166DD04657EC3B3455 /* TransactionsView.swift */; };
 		09031654CD68B78C9C3A8767 /* FinTrackWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EC32F027594698646619587 /* FinTrackWidget.swift */; };
@@ -23,6 +24,9 @@
 		D7F8A2B19C4E6D0A5B3E8127 /* ReceiptImagePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F9B3C24D5F7E1B6C4F9238 /* ReceiptImagePreview.swift */; };
 		136EA57DD3663359B01E239B /* AddTransactionIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D78FE93BDAC755F7DDDAA9EF /* AddTransactionIntent.swift */; };
 		1535203A29A86714A0FCC6EE /* Goal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E62913BEBCFC895969A623 /* Goal.swift */; };
+		A1DEB7010000000000000002 /* Debt.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1DEB7010000000000000001 /* Debt.swift */; };
+		A1DEB7020000000000000002 /* DebtService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1DEB7020000000000000001 /* DebtService.swift */; };
+		A1DEB7030000000000000002 /* DebtsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1DEB7030000000000000001 /* DebtsView.swift */; };
 		1931663D04FE76ACF8882593 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0164D45747BDF6D844DFAB90 /* APIModels.swift */; };
 		1C3A051187F29D4197B76D5F /* TransactionEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96DED0CA89EC12F174FA369B /* TransactionEditorView.swift */; };
 		1DA0347A4CF5427AB151740C /* FinTrackWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD37DF8944DEB5FCB3908F52 /* FinTrackWidgetBundle.swift */; };
@@ -142,6 +146,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AA7711000000000000000002 /* MoneyComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyComponents.swift; sourceTree = "<group>"; };
 		0164D45747BDF6D844DFAB90 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
 		01D518134BA3B7424747887A /* Budget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Budget.swift; sourceTree = "<group>"; };
 		01D86A2A68D69AC9EB61935D /* BalanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalanceService.swift; sourceTree = "<group>"; };
@@ -154,6 +159,9 @@
 		0E30611F5C70AADC2D5758AE /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		0F8558A67AFFCEDC50C109A0 /* MoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoreView.swift; sourceTree = "<group>"; };
 		12E62913BEBCFC895969A623 /* Goal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Goal.swift; sourceTree = "<group>"; };
+		A1DEB7010000000000000001 /* Debt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Debt.swift; sourceTree = "<group>"; };
+		A1DEB7020000000000000001 /* DebtService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebtService.swift; sourceTree = "<group>"; };
+		A1DEB7030000000000000001 /* DebtsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebtsView.swift; sourceTree = "<group>"; };
 		1A219264BB117992675AC308 /* DashboardCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardCard.swift; sourceTree = "<group>"; };
 		1ABA769D447A5AAB0B871A03 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		1AFCA16ED8DB8009BB829594 /* FinTrack.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FinTrack.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -274,6 +282,14 @@
 			path = Goals;
 			sourceTree = "<group>";
 		};
+		A1DEB7040000000000000001 /* Debts */ = {
+			isa = PBXGroup;
+			children = (
+				A1DEB7030000000000000001 /* DebtsView.swift */,
+			);
+			path = Debts;
+			sourceTree = "<group>";
+		};
 		3F6DD41F738230E3E3308144 /* Network */ = {
 			isa = PBXGroup;
 			children = (
@@ -312,6 +328,7 @@
 				16A9E7BF80333EA9D3BCB05D /* Categories */,
 				C587C942D6C553E71658CD6D /* Components */,
 				8F088E6AE018E681B18811D4 /* Dashboard */,
+				A1DEB7040000000000000001 /* Debts */,
 				372CED5A740639973161CF4F /* Goals */,
 				CA0723993A685D1F130FB290 /* More */,
 				630116BF8D7C2C0DACC322CE /* Onboarding */,
@@ -393,6 +410,7 @@
 				E192D458D7355D6EB165821A /* AnalyticsService.swift */,
 				CBF00173D560B4CCA688A267 /* AppLockController.swift */,
 				01D86A2A68D69AC9EB61935D /* BalanceService.swift */,
+				A1DEB7020000000000000001 /* DebtService.swift */,
 				B91C4E72A8D15F6E40C2A917 /* BankStatementParser.swift */,
 				5482E339A640D56A318B3092 /* CSVExportService.swift */,
 				A3D80B61A7C94E2D05B6F173 /* ReceiptOCR.swift */,
@@ -467,6 +485,7 @@
 				F053C63C61980B18AA6263E4 /* Category.swift */,
 				875545E5D056BF6E6194684F /* Enums.swift */,
 				12E62913BEBCFC895969A623 /* Goal.swift */,
+				A1DEB7010000000000000001 /* Debt.swift */,
 				2FB73684BE58709BA98D84D2 /* RecurringTransaction.swift */,
 				F1829FFD6EB0076039DC19BA /* Transaction.swift */,
 				F1A2B3C4D5E6789012345678 /* ItemDictionaryEntry.swift */,
@@ -499,6 +518,7 @@
 				96506B3ECC395F1C6AF1698A /* ActivityShareSheet.swift */,
 				E8F9B3C24D5F7E1B6C4F9238 /* ReceiptImagePreview.swift */,
 				32BBF0F15EC7911B6990AA5B /* SharedComponents.swift */,
+				AA7711000000000000000002 /* MoneyComponents.swift */,
 				D08ED04EDE398055C646F0E4 /* SkeletonViews.swift */,
 			);
 			path = Components;
@@ -701,6 +721,9 @@
 				2B35F4D1A423F693193278C3 /* Enums.swift in Sources */,
 				8CA5C4F3F0A7C1859311AE27 /* FinTrackApp.swift in Sources */,
 				1535203A29A86714A0FCC6EE /* Goal.swift in Sources */,
+				A1DEB7010000000000000002 /* Debt.swift in Sources */,
+				A1DEB7020000000000000002 /* DebtService.swift in Sources */,
+				A1DEB7030000000000000002 /* DebtsView.swift in Sources */,
 				9D1B05BFE0D2A1D43D505FCF /* GoalsView.swift in Sources */,
 				20FB6E6E5907ABCDAE8E5142 /* HealthExpenseChart.swift in Sources */,
 				22A4824662F11D489E543017 /* Helpers.swift in Sources */,
@@ -732,6 +755,7 @@
 				7C91E04AB2D14F8E9A3056AB /* ProfileView.swift in Sources */,
 				339FA7D895203097EEF576EB /* SettingsView.swift in Sources */,
 				878268894A4CA93F72C89D2E /* SharedComponents.swift in Sources */,
+				AA7711000000000000000001 /* MoneyComponents.swift in Sources */,
 				329B81AF8575D1F39A0F785D /* SkeletonViews.swift in Sources */,
 				CEA1734DD189A42331D9F8C8 /* SwiftDataRepositories.swift in Sources */,
 				FC0555B3468D36943B87F1D4 /* SyncEngine.swift in Sources */,

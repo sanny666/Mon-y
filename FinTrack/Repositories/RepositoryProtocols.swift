@@ -52,6 +52,13 @@ protocol GoalRepository {
     func delete(_ goal: Goal) throws
 }
 
+protocol DebtRepository {
+    func fetchAll() throws -> [Debt]
+    func fetch(id: UUID) throws -> Debt?
+    func save(_ debt: Debt) throws
+    func delete(_ debt: Debt) throws
+}
+
 protocol RecurringTransactionRepository {
     func fetchAll() throws -> [RecurringTransaction]
     func fetch(id: UUID) throws -> RecurringTransaction?

@@ -273,6 +273,45 @@ final class SwiftDataGoalRepository: GoalRepository {
     }
 }
 
+final class SwiftDataDebtRepository: DebtRepository {
+    private let context: ModelContext
+
+    init(context: ModelContext) {
+        self.context = context
+    }
+
+    func fetchAll() throws -> [Debt] {
+        let descriptor = FetchDescriptor<Debt>(
+            predicate: #Predicate { $0.isDeleted == false },
+            sortBy: [SortDescriptor(\.personName)]
+        )
+        return try context.fetch(descriptor)
+    }
+
+    func fetch(id: UUID) throws -> Debt? {
+        let descriptor = FetchDescriptor<Debt>(
+            predicate: #Predicate { $0.id == id && $0.isDeleted == false }
+        )
+        return try context.fetch(descriptor).first
+    }
+
+    func save(_ debt: Debt) throws {
+        if debt.modelContext == nil {
+            context.insert(debt)
+        }
+        debt.updatedAt = .now
+        debt.isSynced = false
+        try context.save()
+    }
+
+    func delete(_ debt: Debt) throws {
+        debt.isDeleted = true
+        debt.updatedAt = .now
+        debt.isSynced = false
+        try context.save()
+    }
+}
+
 final class SwiftDataRecurringTransactionRepository: RecurringTransactionRepository {
     private let context: ModelContext
 

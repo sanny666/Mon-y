@@ -9,7 +9,7 @@ struct MoreView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
+                Section("Финансы") {
                     NavigationLink {
                         AccountsView()
                     } label: {
@@ -35,9 +35,14 @@ struct MoreView: View {
                     } label: {
                         moreRow("Цели накоплений", systemImage: "flag.fill", tint: SemanticIcon.goal)
                     }
+                    NavigationLink {
+                        DebtsView()
+                    } label: {
+                        moreRow("Долги", systemImage: "person.2.fill", tint: SemanticIcon.debt)
+                    }
                 }
 
-                Section {
+                Section("Данные") {
                     Button {
                         exportCSV()
                     } label: {
@@ -48,6 +53,8 @@ struct MoreView: View {
                     } label: {
                         moreRow("Импорт из банка", systemImage: "building.columns", tint: SemanticIcon.bank)
                     }
+                }
+                Section("Приложение") {
                     NavigationLink {
                         SettingsView()
                     } label: {
@@ -88,13 +95,18 @@ struct MoreView: View {
     }
 
     private func moreRow(_ title: String, systemImage: String, tint: Color) -> some View {
-        Label {
-            Text(title)
-                .foregroundStyle(.primary)
-        } icon: {
-            Image(systemName: systemImage)
-                .foregroundStyle(tint)
-        }
+        let subtitles = [
+            "Счета": "Карты, наличные и депозиты",
+            "Категории": "Порядок в доходах и расходах",
+            "Бюджеты": "Лимиты по категориям",
+            "Повторяющиеся платежи": "Подписки и регулярные расходы",
+            "Цели накоплений": "Прогресс к вашим планам",
+            "Долги": "Кому дали и у кого взяли",
+            "Экспорт CSV": "Сохранить историю операций",
+            "Импорт из банка": "Добавить операции из выписки",
+            "Настройки": "Оформление, валюта и безопасность"
+        ]
+        return MoneyEntityRow(title: title, subtitle: subtitles[title], icon: systemImage, color: tint)
     }
 
     private func exportCSV() {

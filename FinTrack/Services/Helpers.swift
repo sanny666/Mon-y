@@ -8,6 +8,7 @@ enum AppStorageKeys {
     static let defaultCurrency = "defaultCurrency"
     static let appTheme = "appTheme"
     static let appAccentHex = "appAccentHex"
+    static let dynamicAccentEnabled = "dynamicAccentEnabled"
     static let faceIDEnabled = "faceIDEnabled"
     static let hasSeededSubcategories = "hasSeededSubcategories"
     static let hasSeededItemDictionary = "hasSeededItemDictionary"
@@ -125,6 +126,7 @@ enum SemanticIcon {
     static let budget = Color(hex: "#8E44AD")
     static let recurring = Color(hex: "#1ABC9C")
     static let goal = Color(hex: "#268F6B")
+    static let debt = Color(hex: "#C45C26")
     static let export = Color(hex: "#5C6BC0")
     static let bank = Color(hex: "#2F6FED")
     static let settings = Color(hex: "#8E8E93")
