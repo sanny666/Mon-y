@@ -38,9 +38,11 @@ struct VoiceTransactionConfirmView: View {
     }
 
     private var subcategories: [Category] {
-        (selectedRoot?.children ?? []).sorted {
-            $0.name.localizedCompare($1.name) == .orderedAscending
-        }
+        (selectedRoot?.children ?? [])
+            .filter { !$0.isDeleted }
+            .sorted {
+                $0.name.localizedCompare($1.name) == .orderedAscending
+            }
     }
 
     private var canSave: Bool {
@@ -69,6 +71,12 @@ struct VoiceTransactionConfirmView: View {
                     TextField("Сумма", text: $amountText)
                         .keyboardType(.decimalPad)
                         .font(.title2.weight(.semibold))
+
+                    if type != .transfer {
+                        TextField("На что", text: $note, axis: .vertical)
+                            .lineLimit(1...3)
+                            .font(.body)
+                    }
                 }
 
                 Section("Счета") {
@@ -117,16 +125,13 @@ struct VoiceTransactionConfirmView: View {
                         }
                     } header: {
                         Text("Категория")
+                    } footer: {
+                        Text("Подкатегория необязательна — можно указать только «На что».")
                     }
                 }
 
                 Section {
                     DatePicker("Дата", selection: $date, displayedComponents: [.date, .hourAndMinute])
-                }
-
-                Section("Название") {
-                    TextField("Товар или описание", text: $note, axis: .vertical)
-                        .lineLimit(2...4)
                 }
             }
             .navigationTitle("Подтверждение")
@@ -141,8 +146,16 @@ struct VoiceTransactionConfirmView: View {
             .onAppear { load() }
             .onChange(of: type) { _, _ in
                 guard !suppressTypeCategoryReset else { return }
-                selectedRootCategoryID = filteredRoots.first?.id
-                selectedSubcategoryID = nil
+                if type == .transfer {
+                    selectedRootCategoryID = nil
+                    selectedSubcategoryID = nil
+                } else if let rootID = selectedRootCategoryID,
+                          !filteredRoots.contains(where: { $0.id == rootID }) {
+                    selectedRootCategoryID = nil
+                    selectedSubcategoryID = nil
+                } else {
+                    selectedSubcategoryID = nil
+                }
                 if type != .transfer {
                     selectedToAccountID = nil
                 }

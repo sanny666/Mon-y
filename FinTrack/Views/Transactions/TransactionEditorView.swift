@@ -47,9 +47,11 @@ struct TransactionEditorView: View {
     }
 
     private var subcategories: [Category] {
-        (selectedRoot?.children ?? []).sorted {
-            $0.name.localizedCompare($1.name) == .orderedAscending
-        }
+        (selectedRoot?.children ?? [])
+            .filter { !$0.isDeleted }
+            .sorted {
+                $0.name.localizedCompare($1.name) == .orderedAscending
+            }
     }
 
     var body: some View {
@@ -59,6 +61,21 @@ struct TransactionEditorView: View {
                     TextField("Сумма", text: $amountText)
                         .keyboardType(.decimalPad)
                         .font(.title2.weight(.semibold))
+
+                    if type != .transfer {
+                        TextField("На что", text: $note, axis: .vertical)
+                            .lineLimit(1...3)
+                            .font(.body)
+                        if let voiceMatchHint {
+                            Text(voiceMatchHint)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } footer: {
+                    if type != .transfer {
+                        Text("Для крупных покупок можно оставить без подкатегории и просто написать, на что ушло.")
+                    }
                 }
 
                 Section("Счета") {
@@ -80,7 +97,7 @@ struct TransactionEditorView: View {
                 }
 
                 if type != .transfer {
-                    Section("Категория") {
+                    Section {
                         Picker("Категория", selection: $selectedRootCategoryID) {
                             Text("Без категории").tag(Optional<UUID>.none)
                             ForEach(filteredRoots, id: \.id) { category in
@@ -99,6 +116,10 @@ struct TransactionEditorView: View {
                                 }
                             }
                         }
+                    } header: {
+                        Text("Категория")
+                    } footer: {
+                        Text("Подкатегория необязательна — достаточно названия покупки выше.")
                     }
                 }
 
@@ -108,13 +129,6 @@ struct TransactionEditorView: View {
 
                 Section("Дополнительно") {
                     tagsEditor
-                    TextField("Комментарий", text: $note, axis: .vertical)
-                        .lineLimit(3...6)
-                    if let voiceMatchHint {
-                        Text(voiceMatchHint)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
                     photoEditor
                 }
             }
@@ -152,8 +166,17 @@ struct TransactionEditorView: View {
         }
         .onChange(of: type) { _, _ in
             guard !suppressTypeCategoryReset else { return }
-            selectedRootCategoryID = filteredRoots.first?.id
-            selectedSubcategoryID = nil
+            // Keep free-form purchases: don't force a category on type switch.
+            if type == .transfer {
+                selectedRootCategoryID = nil
+                selectedSubcategoryID = nil
+            } else if let rootID = selectedRootCategoryID,
+                      !filteredRoots.contains(where: { $0.id == rootID }) {
+                selectedRootCategoryID = nil
+                selectedSubcategoryID = nil
+            } else {
+                selectedSubcategoryID = nil
+            }
             if type != .transfer {
                 selectedToAccountID = nil
             }
@@ -330,7 +353,8 @@ struct TransactionEditorView: View {
                 }
             } else {
                 selectedAccountID = DefaultAccountResolver.resolvedID(from: accounts)
-                selectedRootCategoryID = filteredRoots.first?.id
+                selectedRootCategoryID = nil
+                selectedSubcategoryID = nil
                 if let initialJPEG, let image = UIImage(data: initialJPEG) {
                     attachmentPreview = image
                     if let savedURL = try? AttachmentStore.saveLocalJPEG(initialJPEG) {

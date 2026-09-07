@@ -143,7 +143,9 @@ final class SwiftDataTransactionRepository: TransactionRepository {
         if let accountID = filter.accountID {
             items = items.filter { $0.account?.id == accountID || $0.toAccount?.id == accountID }
         }
-        if let categoryID = filter.categoryID {
+        if filter.uncategorizedOnly {
+            items = items.filter { $0.category == nil }
+        } else if let categoryID = filter.categoryID {
             let allCategories = try context.fetch(
                 FetchDescriptor<Category>(predicate: #Predicate { $0.isDeleted == false })
             )

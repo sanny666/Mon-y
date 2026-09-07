@@ -21,6 +21,8 @@ protocol CategoryRepository {
 struct TransactionFilter {
     var accountID: UUID?
     var categoryID: UUID?
+    /// When true, only transactions with no category (ignores `categoryID`).
+    var uncategorizedOnly: Bool = false
     var startDate: Date?
     var endDate: Date?
     var searchText: String = ""

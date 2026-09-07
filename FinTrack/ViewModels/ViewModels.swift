@@ -85,10 +85,24 @@ final class TransactionsViewModel {
     var accounts: [Account] = []
     var categories: [Category] = []
     var selectedAccountID: UUID?
-    var selectedCategoryID: UUID?
+    var categoryFilter: CategoryFilter = .all
     var period: PeriodFilter = .all
     var searchText: String = ""
     var errorMessage: String?
+
+    enum CategoryFilter: Hashable {
+        case all
+        case uncategorized
+        case category(UUID)
+
+        var chipTitle: String {
+            switch self {
+            case .all: return "Категория"
+            case .uncategorized: return "Без категории"
+            case .category: return "Категория"
+            }
+        }
+    }
 
     enum PeriodFilter: String, CaseIterable, Identifiable {
         case all
@@ -118,6 +132,17 @@ final class TransactionsViewModel {
         }
     }
 
+    var categoryChipTitle: String {
+        switch categoryFilter {
+        case .all:
+            return "Категория"
+        case .uncategorized:
+            return "Без категории"
+        case .category(let id):
+            return categories.first(where: { $0.id == id })?.name ?? "Категория"
+        }
+    }
+
     func reload(container: AppContainer) {
         do {
             accounts = try container.accounts.fetchAll()
@@ -125,7 +150,14 @@ final class TransactionsViewModel {
 
             var filter = TransactionFilter(
                 accountID: selectedAccountID,
-                categoryID: selectedCategoryID,
+                categoryID: {
+                    if case .category(let id) = categoryFilter { return id }
+                    return nil
+                }(),
+                uncategorizedOnly: {
+                    if case .uncategorized = categoryFilter { return true }
+                    return false
+                }(),
                 searchText: searchText
             )
 

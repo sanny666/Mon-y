@@ -188,6 +188,10 @@ struct TransactionRowView: View {
         if transaction.type == .transfer {
             return "Перевод"
         }
+        let trimmedNote = transaction.note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedNote.isEmpty {
+            return trimmedNote
+        }
         return transaction.category?.displayName ?? transaction.type.title
     }
 
@@ -196,10 +200,14 @@ struct TransactionRowView: View {
         if let account = transaction.account {
             parts.append(account.name)
         }
-        if !transaction.note.isEmpty {
-            parts.append(transaction.note)
+        let trimmedNote = transaction.note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedNote.isEmpty, let category = transaction.category {
+            parts.append(category.displayName)
         }
-        return parts.isEmpty ? transaction.date.formatted(date: .abbreviated, time: .omitted) : parts.joined(separator: " · ")
+        if parts.isEmpty {
+            return transaction.date.formatted(date: .abbreviated, time: .omitted)
+        }
+        return parts.joined(separator: " · ")
     }
 
     private var iconName: String {

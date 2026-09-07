@@ -70,7 +70,7 @@ struct TransactionsView: View {
                 dismissSearch()
                 reload()
             }
-            .onChange(of: viewModel.selectedCategoryID) { _, _ in
+            .onChange(of: viewModel.categoryFilter) { _, _ in
                 dismissSearch()
                 reload()
             }
@@ -195,14 +195,13 @@ struct TransactionsView: View {
                 }
 
                 Menu {
-                    Button("Все категории") { viewModel.selectedCategoryID = nil }
+                    Button("Все категории") { viewModel.categoryFilter = .all }
+                    Button("Без категории") { viewModel.categoryFilter = .uncategorized }
                     ForEach(viewModel.categories, id: \.id) { category in
-                        Button(category.name) { viewModel.selectedCategoryID = category.id }
+                        Button(category.name) { viewModel.categoryFilter = .category(category.id) }
                     }
                 } label: {
-                    filterChip(
-                        title: viewModel.categories.first(where: { $0.id == viewModel.selectedCategoryID })?.name ?? "Категория"
-                    )
+                    filterChip(title: viewModel.categoryChipTitle)
                 }
             }
             .padding(.horizontal)
