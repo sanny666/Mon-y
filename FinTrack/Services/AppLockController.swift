@@ -9,6 +9,9 @@ final class AppLockController {
         static let pin = "appLockPIN"
     }
 
+    /// How long the app can stay in background without asking for PIN / Face ID again.
+    static let backgroundLockGrace: TimeInterval = 60
+
     private let keychain = KeychainStore()
 
     private(set) var isLocked = false
@@ -16,6 +19,9 @@ final class AppLockController {
     private(set) var lastErrorMessage: String?
     /// Observable flag — `hasPIN` alone is computed from Keychain.
     private(set) var pinIsSet = false
+
+    /// Set when the scene enters background; cleared on unlock / successful resume inside grace.
+    private var backgroundedAt: Date?
 
     static let requiredPINLength = 4
 
@@ -48,6 +54,7 @@ final class AppLockController {
         }
     }
 
+    /// Cold start / first gate — always require unlock when PIN is set.
     func lockIfNeeded(enabled: Bool) {
         guard enabled, hasPIN else {
             isLocked = false
@@ -56,9 +63,34 @@ final class AppLockController {
         isLocked = true
     }
 
+    /// App moved to background — remember time, but don't lock yet (bank-style grace).
+    func noteEnteredBackground(enabled: Bool) {
+        guard enabled, hasPIN else {
+            backgroundedAt = nil
+            return
+        }
+        backgroundedAt = .now
+    }
+
+    /// Returning to foreground — lock only if backgrounded longer than the grace period.
+    func lockIfBackgroundGraceExpired(enabled: Bool) {
+        guard enabled, hasPIN else {
+            isLocked = false
+            backgroundedAt = nil
+            return
+        }
+        guard let backgroundedAt else { return }
+        let elapsed = Date.now.timeIntervalSince(backgroundedAt)
+        self.backgroundedAt = nil
+        if elapsed >= Self.backgroundLockGrace {
+            isLocked = true
+        }
+    }
+
     func unlockWithoutAuth() {
         isLocked = false
         lastErrorMessage = nil
+        backgroundedAt = nil
     }
 
     func setPIN(_ pin: String) throws {
@@ -80,6 +112,7 @@ final class AppLockController {
         if ok {
             isLocked = false
             lastErrorMessage = nil
+            backgroundedAt = nil
         } else {
             lastErrorMessage = "Неверный PIN"
         }
@@ -90,6 +123,7 @@ final class AppLockController {
         try keychain.delete(KeychainKey.pin)
         pinIsSet = false
         isLocked = false
+        backgroundedAt = nil
     }
 
     static func isValidPIN(_ pin: String) -> Bool {
@@ -124,6 +158,7 @@ final class AppLockController {
             if success {
                 isLocked = false
                 lastErrorMessage = nil
+                backgroundedAt = nil
             }
             return success
         } catch {

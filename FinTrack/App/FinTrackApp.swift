@@ -230,19 +230,23 @@ struct RootView: View {
         case .active:
             showPrivacyCover = false
             appContainer?.handleSceneBecameActive()
+            if shouldGateWithLock {
+                lockController.lockIfBackgroundGraceExpired(enabled: true)
+            }
             consumeQuickAddIfNeeded()
             if shouldGateWithLock, lockController.isLocked, !isQuickAddActive {
                 Task { await attemptBiometricUnlock() }
             }
             presentQuickAddIfPossible()
         case .inactive:
+            // Blur in app switcher / Control Center — no PIN yet.
             if shouldGateWithLock, !isQuickAddActive {
                 showPrivacyCover = true
             }
         case .background:
             showPrivacyCover = false
             if shouldGateWithLock {
-                lockController.lockIfNeeded(enabled: true)
+                lockController.noteEnteredBackground(enabled: true)
             }
         @unknown default:
             break

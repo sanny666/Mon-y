@@ -95,13 +95,23 @@ struct SettingsView: View {
                 Text("Безопасность")
             } footer: {
                 if lockController.isBiometryAvailable {
-                    Text("PIN обязателен. \(lockController.biometryTitle) — быстрый вход поверх PIN.")
+                    Text("PIN обязателен. \(lockController.biometryTitle) — быстрый вход. Повторный запрос — при запуске и если приложение свёрнуто дольше минуты.")
+                } else {
+                    Text("Повторный запрос PIN — при запуске и если приложение свёрнуто дольше минуты.")
                 }
             }
 
             Section {
-                Text("monёy")
-                    .foregroundStyle(.secondary)
+                VStack(spacing: 4) {
+                    Text("monёy")
+                        .font(.subheadline.weight(.medium))
+                    Text(appVersionLabel)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                .frame(maxWidth: .infinity)
+                .listRowBackground(Color.clear)
             }
         }
         .appGroupedList()
@@ -141,6 +151,13 @@ struct SettingsView: View {
                 defaultAccountID = first.id.uuidString
             }
         }
+    }
+
+    private var appVersionLabel: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "—"
+        let build = info?["CFBundleVersion"] as? String ?? "—"
+        return "Версия \(version) (\(build))"
     }
 
     private var changePINTitle: String {
