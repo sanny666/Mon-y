@@ -43,6 +43,8 @@ final class AppContainer {
     private var periodicSyncTask: Task<Void, Never>?
     private var debounceSyncTask: Task<Void, Never>?
     private var periodicMaintenanceTask: Task<Void, Never>?
+    /// After the first cloud sync attempt we may seed defaults if the account is empty.
+    private var didAttemptInitialCloudRestore = false
 
     init(context: ModelContext) {
         self.context = context
@@ -246,6 +248,8 @@ final class AppContainer {
         try await authManager.login(email: email, password: password)
         needsReauthentication = false
         authBannerMessage = nil
+        // Force full pull so reinstall / new device restores cloud history.
+        UserDefaults.standard.removeObject(forKey: "sync.lastServerTime")
         enableSyncedMode()
         bumpSessionEpoch()
     }
@@ -254,6 +258,7 @@ final class AppContainer {
         try await authManager.register(email: email, password: password, name: name)
         needsReauthentication = false
         authBannerMessage = nil
+        UserDefaults.standard.removeObject(forKey: "sync.lastServerTime")
         enableSyncedMode()
         bumpSessionEpoch()
     }
@@ -305,8 +310,23 @@ final class AppContainer {
 
     func performSync() async {
         guard let syncEngine else { return }
+        // Heal reinstall bug: push advanced the cursor before pull, so historical
+        // cloud data was skipped. If we never restored any synced transactions,
+        // force a full pull (safe for brand-new accounts too).
+        if syncEngine.lastSyncDate != nil {
+            let syncedTransactions = (try? context.fetch(
+                FetchDescriptor<Transaction>(predicate: #Predicate { $0.isSynced == true })
+            )) ?? []
+            if syncedTransactions.isEmpty {
+                syncEngine.resetSyncCursor()
+            }
+        }
         await syncEngine.syncNow()
         syncStatus = syncEngine.status
+        didAttemptInitialCloudRestore = true
+        // After cloud restore: seed only if still empty, then collapse name duplicates.
+        seedDefaultCategoriesIfNeeded()
+        dedupeCategoriesIfNeeded()
         notifyChange()
     }
 
@@ -407,6 +427,11 @@ final class AppContainer {
         do {
             let existing = try categories.fetchAll()
             if existing.isEmpty {
+                // Logged-in installs restore categories from cloud first; seeding here
+                // races sync and creates permanent name duplicates on the server.
+                if isLoggedIn, syncEngine != nil, !didAttemptInitialCloudRestore {
+                    return
+                }
                 for category in SeedDataService.defaultCategories() {
                     try categories.save(category)
                 }
@@ -415,11 +440,162 @@ final class AppContainer {
                 notifyChange()
                 return
             }
+            dedupeCategoriesIfNeeded()
             seedSubcategoriesIfNeeded()
             seedDefaultItemDictionaryIfNeeded()
         } catch {
             // Ignore seed failures on first launch.
         }
+    }
+
+    /// Collapses duplicate categories with the same type + parent + name.
+    /// Prefer synced / heavily used rows; reassign relations; soft-delete losers for sync.
+    func dedupeCategoriesIfNeeded() {
+        do {
+            var changed = false
+            // Several passes: reparenting can create new same-name siblings.
+            for _ in 0..<4 {
+                let all = try context.fetch(
+                    FetchDescriptor<Category>(predicate: #Predicate { $0.isDeleted == false })
+                )
+                guard !all.isEmpty else { return }
+
+                var passChanged = false
+
+                // 1) Roots by type + name.
+                let roots = all.filter { $0.parent == nil }
+                passChanged = mergeDuplicateGroups(roots, among: all) { cat in
+                    "\(cat.typeRaw)|root|\(normalizedCategoryName(cat.name))"
+                } || passChanged
+
+                // Refresh after root merges so child parent pointers are current.
+                let afterRoots = try context.fetch(
+                    FetchDescriptor<Category>(predicate: #Predicate { $0.isDeleted == false })
+                )
+
+                // 2) Children by parent id + name (same parent).
+                let children = afterRoots.filter { $0.parent != nil }
+                passChanged = mergeDuplicateGroups(children, among: afterRoots) { cat in
+                    let parentKey = cat.parent?.id.uuidString ?? "nil"
+                    return "\(cat.typeRaw)|child|\(parentKey)|\(normalizedCategoryName(cat.name))"
+                } || passChanged
+
+                // 3) Children by parent name + child name (orphans under duplicate parents).
+                let afterChildren = try context.fetch(
+                    FetchDescriptor<Category>(predicate: #Predicate { $0.isDeleted == false })
+                ).filter { $0.parent != nil }
+                passChanged = mergeDuplicateGroups(afterChildren, among: afterChildren) { cat in
+                    let parentName = normalizedCategoryName(cat.parent?.name ?? "")
+                    return "\(cat.typeRaw)|byParentName|\(parentName)|\(normalizedCategoryName(cat.name))"
+                } || passChanged
+
+                if passChanged {
+                    changed = true
+                } else {
+                    break
+                }
+            }
+
+            if changed {
+                try context.save()
+                notifyChange()
+                if dataMode == .synced {
+                    scheduleSyncDebounced()
+                }
+            }
+        } catch {
+            // Best-effort heal.
+        }
+    }
+
+    private func normalizedCategoryName(_ name: String) -> String {
+        name
+            .lowercased()
+            .replacingOccurrences(of: "ё", with: "е")
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func mergeDuplicateGroups(
+        _ items: [Category],
+        among allKnown: [Category],
+        key: (Category) -> String
+    ) -> Bool {
+        let grouped = Dictionary(grouping: items, by: key)
+        var changed = false
+        for (_, group) in grouped where group.count > 1 {
+            let ranked = group.sorted(by: Self.preferredCategory)
+            guard let keeper = ranked.first else { continue }
+            for loser in ranked.dropFirst() where !loser.isDeleted {
+                absorb(loser, into: keeper, among: allKnown)
+                changed = true
+            }
+        }
+        return changed
+    }
+
+    /// Higher is better — synced + more usage wins.
+    private static func preferredCategory(_ lhs: Category, _ rhs: Category) -> Bool {
+        let lScore = categoryKeepScore(lhs)
+        let rScore = categoryKeepScore(rhs)
+        if lScore != rScore { return lScore > rScore }
+        return lhs.id.uuidString < rhs.id.uuidString
+    }
+
+    private static func categoryKeepScore(_ category: Category) -> Int {
+        var score = 0
+        if category.isSynced { score += 1_000 }
+        if category.serverID != nil { score += 100 }
+        score += category.transactions.filter { !$0.isDeleted }.count * 10
+        score += category.budgets.filter { !$0.isDeleted }.count * 5
+        score += category.recurringTemplates.filter { !$0.isDeleted }.count * 5
+        score += category.dictionaryEntries.filter { !$0.isDeleted }.count
+        score += category.children.filter { !$0.isDeleted }.count
+        return score
+    }
+
+    private func absorb(_ loser: Category, into keeper: Category, among allKnown: [Category]) {
+        // Don't trust relationship arrays alone — reparent via parent pointer scan.
+        for child in allKnown where !child.isDeleted && child.parent?.id == loser.id {
+            child.parent = keeper
+            child.updatedAt = .now
+            child.isSynced = false
+        }
+        for child in loser.children where !child.isDeleted {
+            child.parent = keeper
+            child.updatedAt = .now
+            child.isSynced = false
+        }
+
+        for tx in loser.transactions where !tx.isDeleted {
+            tx.category = keeper
+            tx.updatedAt = .now
+            tx.isSynced = false
+        }
+        for budget in loser.budgets where !budget.isDeleted {
+            budget.category = keeper
+            budget.updatedAt = .now
+            budget.isSynced = false
+        }
+        for item in loser.recurringTemplates where !item.isDeleted {
+            item.category = keeper
+            item.updatedAt = .now
+            item.isSynced = false
+        }
+        for entry in loser.dictionaryEntries where !entry.isDeleted {
+            entry.category = keeper
+            entry.updatedAt = .now
+            entry.isSynced = false
+        }
+
+        // If absorbing a child into another under a different parent, park under keeper's parent.
+        if keeper.parent != nil, loser.parent?.id != keeper.parent?.id {
+            loser.parent = keeper.parent
+        }
+
+        loser.isDeleted = true
+        loser.updatedAt = .now
+        loser.isSynced = false
     }
 
     func seedDefaultItemDictionaryIfNeeded() {
@@ -447,8 +623,12 @@ final class AppContainer {
 
         do {
             let roots = try categories.fetchRoots()
+            // Avoid attaching the same seed tree to every duplicate parent name.
+            var seenRootNames = Set<String>()
             for root in roots {
-                let existingNames = Set(root.children.map(\.name))
+                let key = "\(root.typeRaw)|\(root.name.lowercased())"
+                guard seenRootNames.insert(key).inserted else { continue }
+                let existingNames = Set(root.children.filter { !$0.isDeleted }.map(\.name))
                 let seeds = SeedDataService.subcategorySeeds(forParentName: root.name)
                 for seed in seeds where !existingNames.contains(seed.name) {
                     let child = Category(

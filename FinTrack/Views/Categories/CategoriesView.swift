@@ -52,7 +52,10 @@ struct CategoriesView: View {
                 CategoryEditorView(category: nil, parent: parent)
             }
         }
-        .onAppear { FirstLoad.finish($isLoading) { viewModel.reload(container: container) } }
+        .onAppear {
+            container.dedupeCategoriesIfNeeded()
+            FirstLoad.finish($isLoading) { viewModel.reload(container: container) }
+        }
         .onChange(of: container.refreshToken) { _, _ in
             guard !isLoading else { return }
             viewModel.reload(container: container)
@@ -76,9 +79,11 @@ struct CategoriesView: View {
         } else {
             ForEach(items, id: \.id) { category in
                 DisclosureGroup {
-                    let children = category.children.sorted {
-                        $0.name.localizedCompare($1.name) == .orderedAscending
-                    }
+                    let children = category.children
+                        .filter { !$0.isDeleted }
+                        .sorted {
+                            $0.name.localizedCompare($1.name) == .orderedAscending
+                        }
                     ForEach(children, id: \.id) { child in
                         Button {
                             editing = child

@@ -56,8 +56,18 @@ final class SyncEngine {
 
         do {
             try await uploadPendingAttachments()
-            try await pushPendingChanges()
-            try await pullRemoteChanges(since: lastSyncDate)
+
+            // First sync after install/login: pull cloud data before pushing local seeds.
+            // Push must not advance lastSyncDate — otherwise since=now skips historical pull.
+            if lastSyncDate == nil {
+                try await pullRemoteChanges(since: nil)
+                try discardUnsyncedLocalSeedsIfCloudRestored()
+                try await pushPendingChanges()
+            } else {
+                try await pushPendingChanges()
+                try await pullRemoteChanges(since: lastSyncDate)
+            }
+
             status = .success(Date())
             onDataChanged()
         } catch let error as NetworkError {
@@ -65,6 +75,11 @@ final class SyncEngine {
         } catch {
             status = .error(error.localizedDescription)
         }
+    }
+
+    /// Clears the sync cursor so the next `syncNow` does a full pull (reinstall / re-login restore).
+    func resetSyncCursor() {
+        lastSyncDate = nil
     }
 
     func pushPendingChanges() async throws {
@@ -125,7 +140,7 @@ final class SyncEngine {
             try context.save()
         }
 
-        lastSyncDate = response.serverTime
+        // Do not set lastSyncDate here — only pull advances the cursor (API: updatedAt > since).
     }
 
     private func applyConflicts(_ conflicts: [SyncConflictDTO]) throws {
@@ -208,6 +223,45 @@ final class SyncEngine {
         for dto in response.recurringTransactions.changes {
             try upsertRecurring(dto)
         }
+    }
+
+    /// After a full cloud restore, drop local seed rows that were never on the server
+    /// so they are not pushed as duplicate categories/accounts.
+    private func discardUnsyncedLocalSeedsIfCloudRestored() throws {
+        let syncedCategories = try context.fetch(
+            FetchDescriptor<Category>(predicate: #Predicate { $0.isSynced == true && $0.isDeleted == false })
+        )
+        if !syncedCategories.isEmpty {
+            let localCategories = try context.fetch(
+                FetchDescriptor<Category>(predicate: #Predicate { $0.isSynced == false })
+            )
+            for category in localCategories where category.transactions.isEmpty
+                && category.budgets.isEmpty
+                && category.recurringTemplates.isEmpty
+            {
+                for entry in category.dictionaryEntries {
+                    context.delete(entry)
+                }
+                context.delete(category)
+            }
+        }
+
+        let syncedAccounts = try context.fetch(
+            FetchDescriptor<Account>(predicate: #Predicate { $0.isSynced == true && $0.isDeleted == false })
+        )
+        if !syncedAccounts.isEmpty {
+            let localAccounts = try context.fetch(
+                FetchDescriptor<Account>(predicate: #Predicate { $0.isSynced == false })
+            )
+            for account in localAccounts where account.transactions.isEmpty
+                && account.incomingTransfers.isEmpty
+                && account.recurringTemplates.isEmpty
+            {
+                context.delete(account)
+            }
+        }
+
+        try context.save()
     }
 
     private func upsertAccount(_ dto: AccountDTO, force: Bool = false) throws {
