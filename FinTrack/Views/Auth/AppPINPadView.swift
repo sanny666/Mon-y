@@ -2,10 +2,10 @@ import SwiftUI
 
 /// Theme-adaptive colors for lock / PIN screens (follows app light/dark/system).
 enum MoneyLockPalette {
-    static let danger = Color(hex: "#E5484D")
+    static let danger = MoneyPalette.expense
 
-    static var background: Color { Color(uiColor: .systemBackground) }
-    static var groupedBackground: Color { Color(uiColor: .systemGroupedBackground) }
+    static var background: Color { MoneyPalette.canvas }
+    static var groupedBackground: Color { MoneyPalette.canvas }
     static var surface: Color { Color(uiColor: .secondarySystemGroupedBackground) }
     static var keyFill: Color { Color(uiColor: .secondarySystemFill) }
     static var primaryText: Color { Color.primary }
@@ -166,7 +166,7 @@ struct AppPINPadView: View {
                     y: 3
                 )
         } else {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: MoneyLayout.controlRadius, style: .continuous)
                 .fill(MoneyLockPalette.surface)
         }
     }
@@ -187,10 +187,11 @@ struct AppPINPadView: View {
 }
 
 private struct MoneyPINKeyPressStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.92 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.92 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }

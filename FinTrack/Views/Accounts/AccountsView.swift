@@ -25,26 +25,13 @@ struct AccountsView: View {
                         NavigationLink {
                             AccountDetailView(account: account)
                         } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: account.icon)
-                                    .foregroundStyle(Color(hex: account.colorHex))
-                                    .frame(width: 36, height: 36)
-                                    .background(Color(hex: account.colorHex).opacity(0.15))
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(account.name)
-                                        .font(.body.weight(.medium))
-                                    Text(account.type.title)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Text(CurrencyFormatter.string(
-                                    amount: viewModel.balances[account.id] ?? account.initialBalance,
-                                    currencyCode: account.currency
-                                ))
-                                .fontWeight(.semibold)
-                            }
+                            MoneyEntityRow(
+                                title: account.name,
+                                subtitle: "\(account.type.title) · \(account.currency)",
+                                icon: account.icon,
+                                color: Color(hex: account.colorHex),
+                                amount: CurrencyFormatter.string(amount: viewModel.balances[account.id] ?? account.initialBalance, currencyCode: account.currency)
+                            )
                         }
                     }
                     .onDelete { indexSet in
@@ -56,6 +43,7 @@ struct AccountsView: View {
                 .appGroupedList()
             }
         }
+        .background(MoneyPalette.canvas)
         .navigationTitle("Счета")
         .toolbarTitleDisplayMode(.large)
         .glassAddFAB(
@@ -115,13 +103,18 @@ struct AccountDetailView: View {
             } else {
                 List {
                     Section {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(CurrencyFormatter.string(amount: balance, currencyCode: account.currency))
-                                .font(.largeTitle.bold())
-                            Text("\(account.type.title) · \(account.currency)")
-                                .foregroundStyle(.secondary)
+                        MoneyCard(tinted: true) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(CurrencyFormatter.string(amount: balance, currencyCode: account.currency))
+                                    .font(.system(.largeTitle, design: .rounded).bold())
+                                    .monospacedDigit()
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Text("\(account.type.title) · \(account.currency)")
+                                    .foregroundStyle(.secondary)
+                            }
                         }
-                        .padding(.vertical, 4)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
                     }
 
                     Section("История") {
@@ -138,6 +131,7 @@ struct AccountDetailView: View {
                 .appGroupedList()
             }
         }
+        .background(MoneyPalette.canvas)
         .navigationTitle(account.name)
         .toolbarTitleDisplayMode(.large)
         .toolbar {
@@ -203,11 +197,15 @@ struct AccountEditorView: View {
                 }
                 TextField("Начальный баланс", text: $balanceText)
                     .keyboardType(.decimalPad)
+                    .font(.system(.title2, design: .rounded).weight(.semibold))
+                    .monospacedDigit()
             }
             Section {
                 IconColorPicker(icon: $icon, colorHex: $colorHex, icons: IconPalette.accountIcons)
             }
         }
+        .appGroupedList()
+        .background(MoneyPalette.canvas)
         .navigationTitle(account == nil ? "Новый счёт" : "Счёт")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

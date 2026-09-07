@@ -4,13 +4,17 @@ import SwiftUI
 struct AnalyticsView: View {
     @Environment(AppContainer.self) private var container
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.appAccentColor) private var accent
     @AppStorage(AppStorageKeys.defaultCurrency) private var defaultCurrency = AppCurrency.kzt.rawValue
     @State private var viewModel = AnalyticsViewModel()
     @State private var isLoading = true
     @State private var animationProgress: Double = 0
+    @State private var expenseDayOffset = 0
 
-    private let incomeColor = Color(hex: "#268F6B")
-    private let expenseColor = Color(hex: "#FF453A")
+    private let incomeColor = MoneyPalette.income
+    private let expenseColor = MoneyPalette.expense
+    private let calendar = Calendar(identifier: .gregorian)
 
     var body: some View {
         Group {
@@ -19,13 +23,10 @@ struct AnalyticsView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        Picker("Период", selection: $viewModel.period) {
-                            ForEach(AnalyticsPeriod.allCases) { period in
-                                Text(period.title).tag(period)
-                            }
-                        }
-                        .pickerStyle(.segmented)
+                        MoneyPeriodPicker(title: "Период", values: AnalyticsPeriod.allCases,
+                                          selection: $viewModel.period, label: { $0.title })
 
+                        weeklyExpenseSection
                         categorySection
                             .id("category-\(viewModel.period.rawValue)")
                         monthComparisonSection
@@ -33,12 +34,13 @@ struct AnalyticsView: View {
                         balanceSection
                             .id("balance-\(viewModel.period.rawValue)")
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, MoneyLayout.pageInset)
                     .padding(.bottom, 24)
+                    .frame(maxWidth: MoneyLayout.contentWidth)
+                    .frame(maxWidth: .infinity)
                 }
-                .background(Color(uiColor: .systemGroupedBackground))
+                .background(MoneyPalette.canvas)
                 .chartAppearAnimation($animationProgress)
-                .simultaneousGesture(periodSwipeGesture)
             }
         }
         .largeScreenTitle("Аналитика")
@@ -49,30 +51,49 @@ struct AnalyticsView: View {
         }
         .onChange(of: viewModel.period) { _, _ in
             guard !isLoading else { return }
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                 reload()
             }
+        }
+        .onChange(of: viewModel.availableExpenseDays) { _, maximum in
+            expenseDayOffset = min(expenseDayOffset, maximum)
         }
         .sensoryFeedback(.selection, trigger: viewModel.period)
     }
 
-    private var periodSwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 24, coordinateSpace: .local)
-            .onEnded { value in
-                let dx = value.translation.width
-                let dy = value.translation.height
-                // Horizontal swipe wins over vertical scroll.
-                guard abs(dx) > abs(dy) * 1.4, abs(dx) > 56 else { return }
-                shiftPeriod(by: dx < 0 ? 1 : -1)
-            }
+    private var weeklyExpenseSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HealthExpenseChart(
+                points: viewModel.expenseHistory,
+                currencyCode: viewModel.currencyCode,
+                endDate: expenseChartEndDate,
+                periodDescription: expenseChartPeriodDescription,
+                dayOffset: expenseDayOffset,
+                maxDayOffset: viewModel.availableExpenseDays,
+                onDayOffsetChange: { next in
+                    guard next != expenseDayOffset else { return }
+                    expenseDayOffset = next
+                }
+            )
+        }
     }
 
-    private func shiftPeriod(by delta: Int) {
-        let periods = AnalyticsPeriod.allCases
-        guard let index = periods.firstIndex(of: viewModel.period) else { return }
-        let next = index + delta
-        guard periods.indices.contains(next) else { return }
-        viewModel.period = periods[next]
+    private var expenseChartEndDate: Date {
+        calendar.date(byAdding: .day, value: -expenseDayOffset, to: .now) ?? .now
+    }
+
+    private var expenseChartPeriodDescription: String {
+        expenseDayOffset == 0 ? "на этой неделе" : "за период \(expenseChartDateRange)"
+    }
+
+    private var expenseChartDateRange: String {
+        let endDate = expenseChartEndDate
+        let startDate = calendar.date(byAdding: .day, value: -6, to: endDate) ?? endDate
+        let formatter = DateIntervalFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: startDate, to: endDate)
     }
 
     private var categoryTotal: Double {
@@ -80,7 +101,7 @@ struct AnalyticsView: View {
     }
 
     private var categorySection: some View {
-        DashboardCard {
+        MoneyCard {
             VStack(alignment: .leading, spacing: 16) {
                 DashboardSectionHeader(
                     title: "Расходы по категориям",
@@ -95,6 +116,10 @@ struct AnalyticsView: View {
                         subtitle: "За выбранный период расходов нет"
                     )
                 } else {
+                    Text(CurrencyFormatter.string(amount: categoryTotal, currencyCode: viewModel.currencyCode))
+                        .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                        .monospacedDigit()
+                        .fixedSize(horizontal: false, vertical: true)
                     ZStack {
                         Chart(viewModel.categorySlices) { slice in
                             SectorMark(
@@ -108,20 +133,11 @@ struct AnalyticsView: View {
                         }
                         .chartLegend(.hidden)
 
-                        VStack(spacing: 2) {
-                            Text("Всего")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Text(CurrencyFormatter.string(amount: categoryTotal, currencyCode: viewModel.currencyCode))
-                                .font(.system(.title3, design: .rounded).weight(.bold))
-                                .minimumScaleFactor(0.6)
-                                .lineLimit(1)
-                        }
-                        .padding(.horizontal, 20)
-                        .opacity(0.35 + 0.65 * animationProgress)
+                        Text("За период")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
                     }
                     .frame(height: 200)
-                    .shadow(color: Color.black.opacity(0.06), radius: 3, y: 1)
                     .allowsHitTesting(false)
 
                     VStack(alignment: .leading, spacing: 10) {
@@ -144,6 +160,7 @@ struct AnalyticsView: View {
                                 Spacer()
                                 Text(CurrencyFormatter.string(amount: slice.amount, currencyCode: viewModel.currencyCode))
                                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                                    .monospacedDigit()
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -154,7 +171,7 @@ struct AnalyticsView: View {
     }
 
     private var monthComparisonSection: some View {
-        DashboardCard {
+        MoneyCard {
             VStack(alignment: .leading, spacing: 16) {
                 DashboardSectionHeader(
                     title: "Доходы и расходы",
@@ -216,7 +233,7 @@ struct AnalyticsView: View {
     }
 
     private var balanceSection: some View {
-        DashboardCard {
+        MoneyCard {
             VStack(alignment: .leading, spacing: 16) {
                 DashboardSectionHeader(
                     title: "Динамика баланса",
@@ -248,7 +265,7 @@ struct AnalyticsView: View {
                             .interpolationMethod(.catmullRom)
                             .foregroundStyle(lineGradient)
                             .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                            .shadow(color: Color.accentColor.opacity(0.25), radius: 4, y: 2)
+                            .shadow(color: accent.opacity(0.25), radius: 4, y: 2)
                         }
 
                         if let last = viewModel.balancePoints.last {
@@ -257,7 +274,7 @@ struct AnalyticsView: View {
                                 y: .value("Баланс", last.balance * animationProgress)
                             )
                             .symbolSize(48)
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(accent)
                         }
                     }
                     .chartYAxis {
@@ -289,8 +306,8 @@ struct AnalyticsView: View {
     private var areaFill: LinearGradient {
         LinearGradient(
             colors: [
-                Color.accentColor.opacity(colorScheme == .dark ? 0.28 : 0.22),
-                Color.accentColor.opacity(0.02)
+                accent.opacity(colorScheme == .dark ? 0.28 : 0.22),
+                accent.opacity(0.02)
             ],
             startPoint: .top,
             endPoint: .bottom
@@ -300,8 +317,8 @@ struct AnalyticsView: View {
     private var lineGradient: LinearGradient {
         LinearGradient(
             colors: [
-                Color.accentColor.opacity(0.75),
-                Color.accentColor
+                accent.opacity(0.75),
+                accent
             ],
             startPoint: .leading,
             endPoint: .trailing

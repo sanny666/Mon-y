@@ -1,11 +1,45 @@
 import SwiftUI
 
-struct EmptyStateView: View {
+struct EmptyStateView<MenuItems: View>: View {
     let systemImage: String
     let title: String
     let subtitle: String
     var actionTitle: String? = nil
     var action: (() -> Void)? = nil
+    private let showsMenu: Bool
+    @ViewBuilder var menuItems: () -> MenuItems
+
+    init(
+        systemImage: String,
+        title: String,
+        subtitle: String,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil
+    ) where MenuItems == EmptyView {
+        self.systemImage = systemImage
+        self.title = title
+        self.subtitle = subtitle
+        self.actionTitle = actionTitle
+        self.action = action
+        self.showsMenu = false
+        self.menuItems = { EmptyView() }
+    }
+
+    init(
+        systemImage: String,
+        title: String,
+        subtitle: String,
+        actionTitle: String,
+        @ViewBuilder menu: @escaping () -> MenuItems
+    ) {
+        self.systemImage = systemImage
+        self.title = title
+        self.subtitle = subtitle
+        self.actionTitle = actionTitle
+        self.action = nil
+        self.showsMenu = true
+        self.menuItems = menu
+    }
 
     var body: some View {
         ContentUnavailableView {
@@ -15,7 +49,15 @@ struct EmptyStateView: View {
         } actions: {
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(MoneyPrimaryButtonStyle())
+                    .frame(maxWidth: 320)
+            } else if showsMenu, let actionTitle {
+                Menu(content: menuItems) {
+                    Text(actionTitle)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(MoneyPrimaryButtonStyle())
+                .frame(maxWidth: 320)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -30,12 +72,12 @@ struct ModalCloseToolbarItem: ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
             if #available(iOS 26.0, *) {
                 Button(role: .close, action: action)
-                    .tint(.red)
+                    .tint(.primary)
             } else {
                 Button(action: action) {
                     Image(systemName: "xmark")
                 }
-                .tint(.red)
+                .tint(.primary)
                 .accessibilityLabel("Закрыть")
             }
         }
@@ -50,17 +92,9 @@ struct ModalConfirmToolbarItem: ToolbarContent {
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .confirmationAction) {
-            if #available(iOS 26.0, *) {
-                Button(role: .confirm, action: action)
-                    .disabled(isDisabled)
-                    .accessibilityLabel(accessibilityLabel)
-            } else {
-                Button(action: action) {
-                    Image(systemName: "checkmark")
-                }
+            Button(accessibilityLabel, action: action)
+                .fontWeight(.semibold)
                 .disabled(isDisabled)
-                .accessibilityLabel(accessibilityLabel)
-            }
         }
     }
 }
@@ -74,6 +108,7 @@ struct AmountText: View {
         Text(formatted)
             .foregroundStyle(color)
             .fontWeight(.semibold)
+            .monospacedDigit()
     }
 
     private var formatted: String {
@@ -88,7 +123,7 @@ struct AmountText: View {
 
     private var color: Color {
         guard let isExpense else { return .primary }
-        return isExpense ? .red : .green
+        return isExpense ? MoneyPalette.expense : MoneyPalette.income
     }
 }
 
@@ -107,9 +142,9 @@ struct IconColorPicker: View {
                         icon = item
                     } label: {
                         Image(systemName: item)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 44, height: 44)
                             .background(icon == item ? Color(hex: colorHex).opacity(0.25) : Color.secondary.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .clipShape(RoundedRectangle(cornerRadius: MoneyLayout.iconRadius))
                     }
                     .buttonStyle(.plain)
                 }
@@ -145,77 +180,7 @@ struct TransactionRowView: View {
     let currencyCode: String
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: iconName)
-                .foregroundStyle(Color(hex: transaction.category?.colorHex ?? "#268F6B"))
-                .frame(width: 36, height: 36)
-                .background(Color(hex: transaction.category?.colorHex ?? "#268F6B").opacity(0.15))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.body.weight(.medium))
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if !transaction.tags.isEmpty {
-                    Text(transaction.tags.prefix(3).map { "#\($0)" }.joined(separator: " "))
-                        .font(.caption2)
-                        .foregroundStyle(Color.accentColor)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 4) {
-                AmountText(
-                    amount: transaction.amount,
-                    currencyCode: currencyCode,
-                    isExpense: transaction.type == .expense || transaction.type == .transfer
-                )
-                if transaction.attachmentURL != nil {
-                    Image(systemName: "paperclip")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding(.vertical, 4)
-    }
-
-    private var title: String {
-        if transaction.type == .transfer {
-            return "Перевод"
-        }
-        let trimmedNote = transaction.note.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedNote.isEmpty {
-            return trimmedNote
-        }
-        return transaction.category?.displayName ?? transaction.type.title
-    }
-
-    private var subtitle: String {
-        var parts: [String] = []
-        if let account = transaction.account {
-            parts.append(account.name)
-        }
-        let trimmedNote = transaction.note.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedNote.isEmpty, let category = transaction.category {
-            parts.append(category.displayName)
-        }
-        if parts.isEmpty {
-            return transaction.date.formatted(date: .abbreviated, time: .omitted)
-        }
-        return parts.joined(separator: " · ")
-    }
-
-    private var iconName: String {
-        switch transaction.type {
-        case .income: return transaction.category?.icon ?? "arrow.down.circle.fill"
-        case .expense: return transaction.category?.icon ?? "arrow.up.circle.fill"
-        case .transfer: return "arrow.left.arrow.right"
-        }
+        MoneyTransactionRow(transaction: transaction, currencyCode: currencyCode)
     }
 }
 
@@ -288,16 +253,27 @@ private struct GlassAddFABModifier: ViewModifier {
     let action: () -> Void
 
     func body(content: Content) -> some View {
-        content.overlay(alignment: .bottomTrailing) {
+        content.safeAreaInset(edge: .bottom, spacing: 0) {
             if isVisible {
-                VStack(spacing: 12) {
-                    if let micAction {
-                        GlassMicButton(accessibilityLabel: micAccessibilityLabel, action: micAction)
-                    }
-                    GlassAddButton(accessibilityLabel: accessibilityLabel, action: action)
+                if let micAction {
+                    MoneyActionBar(add: action, voice: micAction)
+                } else {
+                    MoneyCreateBar(title: accessibilityLabel, action: action)
                 }
-                .padding(.trailing, 20)
-                .padding(.bottom, 20)
+            }
+        }
+    }
+}
+
+private struct GlassAddMenuFABModifier<MenuItems: View>: ViewModifier {
+    var isVisible: Bool = true
+    let accessibilityLabel: String
+    @ViewBuilder let menuItems: () -> MenuItems
+
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .bottom, spacing: 0) {
+            if isVisible {
+                MoneyCreateBar(title: accessibilityLabel, menu: menuItems)
             }
         }
     }
@@ -317,6 +293,18 @@ extension View {
             micAccessibilityLabel: micAccessibilityLabel,
             micAction: micAction,
             action: action
+        ))
+    }
+
+    func glassAddFAB<MenuItems: View>(
+        isVisible: Bool = true,
+        accessibilityLabel: String,
+        @ViewBuilder menu: @escaping () -> MenuItems
+    ) -> some View {
+        modifier(GlassAddMenuFABModifier(
+            isVisible: isVisible,
+            accessibilityLabel: accessibilityLabel,
+            menuItems: menu
         ))
     }
 

@@ -26,23 +26,17 @@ struct GoalsView: View {
                         Button {
                             editing = goal
                         } label: {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Image(systemName: goal.icon)
-                                        .foregroundStyle(Color(hex: goal.colorHex))
-                                    Text(goal.name)
-                                        .font(.headline)
-                                        .foregroundStyle(.primary)
-                                    Spacer()
-                                }
-                                ProgressView(value: goal.progress)
-                                    .tint(Color(hex: goal.colorHex))
-                                Text("\(CurrencyFormatter.string(amount: goal.currentAmount, currencyCode: defaultCurrency)) из \(CurrencyFormatter.string(amount: goal.targetAmount, currencyCode: defaultCurrency))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.vertical, 4)
+                            MoneyProgressSummary(
+                                title: goal.name,
+                                icon: goal.icon,
+                                color: Color(hex: goal.colorHex),
+                                current: CurrencyFormatter.string(amount: goal.currentAmount, currencyCode: defaultCurrency),
+                                target: CurrencyFormatter.string(amount: goal.targetAmount, currencyCode: defaultCurrency),
+                                progress: goal.progress,
+                                status: goal.progress >= 1 ? "Цель достигнута" : "Осталось " + CurrencyFormatter.string(amount: max(goal.targetAmount - goal.currentAmount, 0), currencyCode: defaultCurrency)
+                            )
                         }
+                        .buttonStyle(.plain)
                     }
                     .onDelete { indexSet in
                         for index in indexSet {
@@ -53,6 +47,7 @@ struct GoalsView: View {
                 .appGroupedList()
             }
         }
+        .background(MoneyPalette.canvas)
         .navigationTitle("Цели")
         .toolbarTitleDisplayMode(.large)
         .glassAddFAB(isVisible: !isLoading, accessibilityLabel: "Новая цель") {
@@ -101,8 +96,12 @@ struct GoalEditorView: View {
                 TextField("Название", text: $name)
                 TextField("Цель", text: $targetText)
                     .keyboardType(.decimalPad)
+                    .font(.system(.title2, design: .rounded).weight(.semibold))
+                    .monospacedDigit()
                 TextField("Уже накоплено", text: $currentText)
                     .keyboardType(.decimalPad)
+                    .font(.system(.title2, design: .rounded).weight(.semibold))
+                    .monospacedDigit()
                 Toggle("Дедлайн", isOn: $hasDeadline)
                 if hasDeadline {
                     DatePicker("Дата", selection: $deadline, displayedComponents: .date)
@@ -112,6 +111,8 @@ struct GoalEditorView: View {
                 IconColorPicker(icon: $icon, colorHex: $colorHex, icons: IconPalette.categoryIcons)
             }
         }
+        .appGroupedList()
+        .background(MoneyPalette.canvas)
         .navigationTitle(goal == nil ? "Новая цель" : "Цель")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

@@ -3,11 +3,25 @@ import SwiftUI
 struct HealthExpenseChart: View {
     let points: [DailyAmountPoint]
     let currencyCode: String
-    var onOpenDetails: () -> Void
+    var endDate: Date = .now
+    var periodDescription = "на этой неделе"
+    var onOpenDetails: (() -> Void)?
+    /// Day-window offset from today (0 = last 7 days). Used for history scrubbing in Analytics.
+    var dayOffset: Int = 0
+    var maxDayOffset: Int = 0
+    var onDayOffsetChange: ((Int) -> Void)?
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var animationProgress: Double = 0
     @State private var selectedIndex: Int?
+    @State private var edgeScrollTask: Task<Void, Never>?
+    /// +1 = older days, -1 = toward today.
+    @State private var edgeScrollDirection = 0
+    @State private var edgeScrollOvershoot: CGFloat = 0
+    /// Continuous slide while edge-scrolling. Positive reveals older days from the left.
+    @State private var panOffset: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private let chartColor = SemanticIcon.flame
     private let weekdayLabels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
@@ -19,10 +33,10 @@ struct HealthExpenseChart: View {
         return calendar
     }
 
-    /// Последние 7 дней, сегодня — всегда последний столбец.
+    /// Семь дней, оканчивающихся на `endDate`.
     private var chartPoints: [DailyAmountPoint] {
-        let today = calendar.startOfDay(for: Date.now)
-        guard let startDay = calendar.date(byAdding: .day, value: -6, to: today) else { return [] }
+        let endDay = calendar.startOfDay(for: endDate)
+        guard let startDay = calendar.date(byAdding: .day, value: -6, to: endDay) else { return [] }
         let byDay = Dictionary(uniqueKeysWithValues: points.map {
             (calendar.startOfDay(for: $0.date), $0.amount)
         })
@@ -37,6 +51,22 @@ struct HealthExpenseChart: View {
         chartPoints.reduce(0) { $0 + $1.amount }
     }
 
+    /// Visible window plus one neighbour on each side for continuous edge scrolling.
+    private var stripPoints: [DailyAmountPoint] {
+        guard let firstDate = chartPoints.first?.date,
+              let startDate = calendar.date(byAdding: .day, value: -1, to: firstDate) else {
+            return chartPoints
+        }
+        let byDay = Dictionary(uniqueKeysWithValues: points.map {
+            (calendar.startOfDay(for: $0.date), $0.amount)
+        })
+        return (0..<9).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: offset, to: startDate) else { return nil }
+            let day = calendar.startOfDay(for: date)
+            return DailyAmountPoint(date: day, amount: byDay[day] ?? 0)
+        }
+    }
+
     private var average: Double {
         guard !chartPoints.isEmpty else { return 0 }
         return total / Double(chartPoints.count)
@@ -44,11 +74,11 @@ struct HealthExpenseChart: View {
 
     private var hasExpenses: Bool { total > 0 }
 
-    private var todayIndex: Int {
-        chartPoints.firstIndex { calendar.isDateInToday($0.date) } ?? max(chartPoints.count - 1, 0)
+    private var todayIndex: Int? {
+        chartPoints.firstIndex { calendar.isDateInToday($0.date) }
     }
 
-    private var highlightedIndex: Int {
+    private var highlightedIndex: Int? {
         selectedIndex ?? todayIndex
     }
 
@@ -62,7 +92,7 @@ struct HealthExpenseChart: View {
     }
 
     var body: some View {
-        DashboardCard {
+        MoneyCard {
             VStack(alignment: .leading, spacing: 12) {
                 DashboardSectionHeader(
                     title: "Расходы",
@@ -89,7 +119,9 @@ struct HealthExpenseChart: View {
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("На этой неделе расходов не было.")
+                Text(periodDescription == "на этой неделе"
+                     ? "На этой неделе расходов не было."
+                     : "За выбранный период расходов не было.")
                     .font(.body)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -99,7 +131,7 @@ struct HealthExpenseChart: View {
 
     private var summaryAttributed: AttributedString {
         let amount = CurrencyFormatter.string(amount: average, currencyCode: currencyCode)
-        var text = AttributedString("В среднем вы тратили \(amount) в день на этой неделе.")
+        var text = AttributedString("В среднем вы тратили \(amount) в день \(periodDescription).")
         if let range = text.range(of: amount) {
             text[range].font = .body.weight(.semibold)
         }
@@ -107,25 +139,29 @@ struct HealthExpenseChart: View {
     }
 
     private var chartRow: some View {
-        HStack(alignment: .center, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             if hasExpenses {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Средние расходы")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text("Средние расходы").font(.caption).foregroundStyle(.secondary)
                     Text(CurrencyFormatter.string(amount: average, currencyCode: currencyCode))
                         .font(.system(.title3, design: .rounded).weight(.bold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .monospacedDigit()
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .frame(width: 96, alignment: .leading)
                 .accessibilityElement(children: .combine)
             }
-
-            expenseBarChart
+            if dynamicTypeSize.isAccessibilitySize {
+                ForEach(chartPoints) { point in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(weekdayLabel(for: point.date)).foregroundStyle(.secondary)
+                        Text(CurrencyFormatter.string(amount: point.amount, currencyCode: currencyCode)).monospacedDigit()
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            } else {
+                expenseBarChart.frame(height: 156)
+            }
         }
-        .frame(height: 156)
     }
 
     private var expenseBarChart: some View {
@@ -136,6 +172,8 @@ struct HealthExpenseChart: View {
             let cellWidth = geo.size.width / count
             let barWidth = cellWidth * 0.55
             let averageOffset = chartHeight * CGFloat(average / yUpperBound) * animationProgress
+            let strip = onDayOffsetChange == nil ? chartPoints : stripPoints
+            let canPan = onDayOffsetChange != nil && strip.count > chartPoints.count
 
             VStack(spacing: 6) {
                 ZStack(alignment: .bottom) {
@@ -148,16 +186,20 @@ struct HealthExpenseChart: View {
                     }
 
                     HStack(alignment: .bottom, spacing: 0) {
-                        ForEach(Array(chartPoints.enumerated()), id: \.element.id) { index, point in
+                        ForEach(Array(strip.enumerated()), id: \.element.id) { index, point in
+                            let visibleIndex = canPan ? index - 1 : index
                             dayBar(
                                 point: point,
-                                isHighlighted: index == highlightedIndex,
+                                isHighlighted: visibleIndex == highlightedIndex,
                                 cellWidth: cellWidth,
                                 barWidth: barWidth,
                                 chartHeight: chartHeight
                             )
                         }
                     }
+                    .offset(x: canPan ? -cellWidth + panOffset : 0)
+                    .frame(width: geo.size.width, alignment: .leading)
+                    .clipped()
 
                     if let selectedIndex, chartPoints.indices.contains(selectedIndex) {
                         chartDayTooltip(for: chartPoints[selectedIndex])
@@ -174,8 +216,8 @@ struct HealthExpenseChart: View {
                 }
                 .frame(height: chartHeight)
                 .contentShape(Rectangle())
-                .gesture(hasExpenses ? scrubGesture(cellWidth: cellWidth) : nil)
-                .animation(.spring(response: 0.28, dampingFraction: 0.82), value: selectedIndex != nil)
+                .highPriorityGesture(scrubGesture(cellWidth: cellWidth, chartWidth: geo.size.width))
+                .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.82), value: selectedIndex != nil)
                 .sensoryFeedback(.selection, trigger: selectedIndex) { _, new in
                     new != nil
                 }
@@ -185,22 +227,26 @@ struct HealthExpenseChart: View {
                 .accessibilityAdjustableAction { direction in
                     guard hasExpenses else { return }
                     let delta = direction == .increment ? 1 : -1
-                    let base = selectedIndex ?? todayIndex
+                    let base = selectedIndex ?? todayIndex ?? max(chartPoints.count - 1, 0)
                     let next = min(max(base + delta, 0), chartPoints.count - 1)
-                    withAnimation(.snappy(duration: 0.18, extraBounce: 0.05)) {
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.18, extraBounce: 0.05)) {
                         selectedIndex = next
                     }
                 }
 
                 HStack(spacing: 0) {
-                    ForEach(Array(chartPoints.enumerated()), id: \.element.id) { index, point in
+                    ForEach(Array(strip.enumerated()), id: \.element.id) { index, point in
+                        let visibleIndex = canPan ? index - 1 : index
                         Text(weekdayLabel(for: point.date))
                             .font(.caption)
-                            .foregroundStyle(index == highlightedIndex ? chartColor : .secondary)
-                            .animation(.snappy(duration: 0.18, extraBounce: 0.05), value: highlightedIndex)
+                            .foregroundStyle(visibleIndex == highlightedIndex ? chartColor : .secondary)
+                            .animation(reduceMotion ? nil : .snappy(duration: 0.18, extraBounce: 0.05), value: highlightedIndex)
                             .frame(width: cellWidth)
                     }
                 }
+                .offset(x: canPan ? -cellWidth + panOffset : 0)
+                .frame(width: geo.size.width, alignment: .leading)
+                .clipped()
             }
         }
     }
@@ -215,42 +261,116 @@ struct HealthExpenseChart: View {
         return "Среднее \(averageText) в день"
     }
 
-    private func scrubGesture(cellWidth: CGFloat) -> some Gesture {
+    private func scrubGesture(cellWidth: CGFloat, chartWidth: CGFloat) -> some Gesture {
         LongPressGesture(minimumDuration: 0.2)
             .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
             .onChanged { value in
                 switch value {
                 case .second(true, let drag?):
-                    updateSelection(at: drag.location.x, cellWidth: cellWidth)
+                    let virtualX = drag.startLocation.x + drag.translation.width
+                    updateSelection(at: virtualX, cellWidth: cellWidth, chartWidth: chartWidth)
                 default:
                     break
                 }
             }
             .onEnded { _ in
-                withAnimation(.snappy(duration: 0.18, extraBounce: 0.05)) {
+                stopEdgeScroll()
+                withAnimation(reduceMotion ? nil : .snappy(duration: 0.18, extraBounce: 0.05)) {
                     selectedIndex = nil
                 }
             }
     }
 
-    private func updateSelection(at x: CGFloat, cellWidth: CGFloat) {
-        let index = dayIndex(at: x, cellWidth: cellWidth)
+    private func updateSelection(at x: CGFloat, cellWidth: CGFloat, chartWidth: CGFloat) {
+        guard cellWidth > 0, !chartPoints.isEmpty else { return }
+
+        let index: Int
+        if x <= 0 {
+            index = 0
+            // Past left edge: keep advancing into older days while held.
+            startEdgeScroll(direction: 1, overshoot: -x, cellWidth: cellWidth)
+        } else if x >= chartWidth {
+            index = chartPoints.count - 1
+            startEdgeScroll(direction: -1, overshoot: x - chartWidth, cellWidth: cellWidth)
+        } else {
+            stopEdgeScroll()
+            index = min(max(Int(x / cellWidth), 0), chartPoints.count - 1)
+        }
+
         guard index != selectedIndex else { return }
 
         if selectedIndex == nil {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.82)) {
                 selectedIndex = index
             }
         } else {
-            withAnimation(.snappy(duration: 0.18, extraBounce: 0.05)) {
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.18, extraBounce: 0.05)) {
                 selectedIndex = index
             }
         }
     }
 
-    private func dayIndex(at x: CGFloat, cellWidth: CGFloat) -> Int {
-        let index = Int(x / cellWidth)
-        return min(max(index, 0), chartPoints.count - 1)
+    private func startEdgeScroll(direction: Int, overshoot: CGFloat, cellWidth: CGFloat) {
+        guard onDayOffsetChange != nil else { return }
+        edgeScrollDirection = direction
+        edgeScrollOvershoot = max(overshoot, cellWidth * 0.2)
+        guard edgeScrollTask == nil else { return }
+
+        edgeScrollTask = Task { @MainActor in
+            var currentOffset = dayOffset
+            let startedAt = Date.now
+            // ~60fps continuous slide instead of discrete day jumps.
+            let frameNs: UInt64 = 16_000_000
+
+            while !Task.isCancelled {
+                let elapsed = Date.now.timeIntervalSince(startedAt)
+                let atOlderLimit = edgeScrollDirection > 0 && currentOffset >= maxDayOffset
+                let atNewerLimit = edgeScrollDirection < 0 && currentOffset <= 0
+                if atOlderLimit || atNewerLimit {
+                    // Soft rubber-band then stop.
+                    let rubber = cellWidth * 0.12
+                    panOffset = edgeScrollDirection > 0
+                        ? min(panOffset, rubber)
+                        : max(panOffset, -rubber)
+                    break
+                }
+
+                let pressure = min(max(edgeScrollOvershoot / cellWidth, 0.35), 6)
+                // Base is snappy; pressure + hold time ramp speed up.
+                let holdBoost = min(CGFloat(elapsed) / 1.2, 2.5)
+                let speed = (220 + 260 * pressure) * (1 + holdBoost * 0.55)
+                panOffset += CGFloat(edgeScrollDirection) * speed * (16.0 / 1000.0)
+                selectedIndex = edgeScrollDirection > 0 ? 0 : max(chartPoints.count - 1, 0)
+
+                while panOffset >= cellWidth, currentOffset < maxDayOffset {
+                    panOffset -= cellWidth
+                    currentOffset += 1
+                    onDayOffsetChange?(currentOffset)
+                }
+                while panOffset <= -cellWidth, currentOffset > 0 {
+                    panOffset += cellWidth
+                    currentOffset -= 1
+                    onDayOffsetChange?(currentOffset)
+                }
+
+                try? await Task.sleep(nanoseconds: frameNs)
+            }
+
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
+                panOffset = 0
+            }
+            edgeScrollTask = nil
+        }
+    }
+
+    private func stopEdgeScroll() {
+        edgeScrollTask?.cancel()
+        edgeScrollTask = nil
+        edgeScrollDirection = 0
+        edgeScrollOvershoot = 0
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
+            panOffset = 0
+        }
     }
 
     private func barCenterX(index: Int, cellWidth: CGFloat) -> CGFloat {
@@ -292,7 +412,7 @@ struct HealthExpenseChart: View {
             TooltipCaret()
                 .offset(y: -1)
         }
-        .animation(.snappy(duration: 0.18, extraBounce: 0.05), value: point.id)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.18, extraBounce: 0.05), value: point.id)
     }
 
     private func dayBar(
@@ -309,7 +429,7 @@ struct HealthExpenseChart: View {
             Spacer(minLength: 0)
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(isHighlighted ? chartColor : barColor)
-                .animation(.snappy(duration: 0.18, extraBounce: 0.05), value: isHighlighted)
+                .animation(reduceMotion ? nil : .snappy(duration: 0.18, extraBounce: 0.05), value: isHighlighted)
                 .frame(width: barWidth, height: fillHeight)
         }
         .frame(width: cellWidth, height: chartHeight)

@@ -3,8 +3,8 @@ import SwiftUI
 struct OnboardingPINView: View {
     @Environment(AppLockController.self) private var lockController
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.appAccentColor) private var accent
     @AppStorage(AppStorageKeys.faceIDEnabled) private var faceIDEnabled = false
-    @AppStorage(AppStorageKeys.appAccentHex) private var appAccentHex = AppAccent.defaultHex
 
     let onComplete: () -> Void
 
@@ -19,8 +19,6 @@ struct OnboardingPINView: View {
     @State private var errorMessage: String?
     @State private var enableFaceID = true
     @State private var appeared = false
-
-    private var accent: Color { Color(hex: appAccentHex) }
 
     private var currentPIN: String {
         phase == .create ? firstPIN : confirmPIN

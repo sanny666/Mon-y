@@ -26,27 +26,15 @@ struct RecurringListView: View {
                         Button {
                             editingItem = item
                         } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text(item.note.isEmpty ? item.type.title : item.note)
-                                        .font(.headline)
-                                        .foregroundStyle(.primary)
-                                    Spacer()
-                                    Text(CurrencyFormatter.string(amount: item.amount, currencyCode: item.account?.currency ?? defaultCurrency))
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(.primary)
-                                }
-                                Text("\(item.frequency.title) · следующий \(item.nextDate.formatted(date: .abbreviated, time: .omitted))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                if let account = item.account {
-                                    Text(account.name)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .padding(.vertical, 2)
+                            MoneyEntityRow(
+                                title: item.note.isEmpty ? item.type.title : item.note,
+                                subtitle: "\(item.frequency.title) · \(item.nextDate.formatted(date: .abbreviated, time: .omitted))" + (item.account.map { " · \($0.name)" } ?? ""),
+                                icon: "arrow.clockwise",
+                                color: SemanticIcon.recurring,
+                                amount: CurrencyFormatter.string(amount: item.amount, currencyCode: item.account?.currency ?? defaultCurrency)
+                            )
                         }
+                        .buttonStyle(.plain)
                     }
                     .onDelete { indexSet in
                         for index in indexSet {
@@ -57,6 +45,7 @@ struct RecurringListView: View {
                 .appGroupedList()
             }
         }
+        .background(MoneyPalette.canvas)
         .navigationTitle("Повторяющиеся")
         .toolbarTitleDisplayMode(.large)
         .glassAddFAB(isVisible: !isLoading, accessibilityLabel: "Новый платёж") {
@@ -128,6 +117,8 @@ struct RecurringEditorView: View {
                 TextField("Название", text: $note)
                 TextField("Сумма", text: $amountText)
                     .keyboardType(.decimalPad)
+                    .font(.system(.title2, design: .rounded).weight(.semibold))
+                    .monospacedDigit()
                 Picker("Тип", selection: $type) {
                     Text(TransactionType.income.title).tag(TransactionType.income)
                     Text(TransactionType.expense.title).tag(TransactionType.expense)
@@ -170,6 +161,8 @@ struct RecurringEditorView: View {
                 }
             }
         }
+        .appGroupedList()
+        .background(MoneyPalette.canvas)
         .navigationTitle(existing == nil ? "Новый платёж" : "Платёж")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

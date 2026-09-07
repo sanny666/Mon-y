@@ -97,6 +97,7 @@ struct BankImportView: View {
                 .appGroupedList()
             }
         }
+        .background(MoneyPalette.canvas)
         .navigationTitle("Импорт из банка")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -233,6 +234,8 @@ struct BankImportView: View {
         case .income: return .green
         case .expense: return Color.red.opacity(0.85)
         case .transfer: return .blue.opacity(0.9)
+        case .debtBorrow, .debtLend, .debtRepay, .debtReceive:
+            return Color(hex: "#C45C26")
         }
     }
 

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct VoiceCaptureView: View {
+    @Environment(\.appAccentColor) private var accent
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(VoiceInputService.self) private var voiceInput
@@ -37,7 +38,7 @@ struct VoiceCaptureView: View {
                     .padding(.bottom, 28)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(uiColor: .systemBackground))
+            .background(MoneyPalette.canvas)
             .navigationTitle("Голосовой ввод")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -83,7 +84,7 @@ struct VoiceCaptureView: View {
     private var waveformSection: some View {
         ZStack {
             Capsule(style: .continuous)
-                .fill(Color.accentColor.opacity(0.07 + Double(voiceInput.meterLevel) * 0.12))
+                .fill(accent.opacity(0.07 + Double(voiceInput.meterLevel) * 0.12))
                 .frame(height: 72)
                 .blur(radius: reduceMotion ? 0 : 12)
                 .opacity(voiceInput.isRecording ? 1 : 0.35)
@@ -96,7 +97,7 @@ struct VoiceCaptureView: View {
                 store: voiceInput.waveformStore,
                 isRecording: voiceInput.isRecording,
                 levelProvider: { voiceInput.currentMeterLevel() },
-                accent: UIColor(Color.accentColor)
+                accent: UIColor(accent)
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.horizontal, 8)

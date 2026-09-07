@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import UIKit
 
@@ -31,6 +32,9 @@ struct AppAccentPreset: Identifiable, Hashable {
 
 enum AppAccent {
     static let defaultHex = "#268F6B"
+    static let dynamicNegativeHex = "#D43D35"
+    static let dynamicNeutralHex = "#E37A22"
+    static let dynamicPositiveHex = "#238B62"
 
     static let presets: [AppAccentPreset] = [
         // Зелёные
@@ -131,6 +135,36 @@ enum AppAccent {
     static func checkmarkColor(forHex hex: String) -> Color {
         luminance(hex: hex) > 0.62 ? Color.black.opacity(0.75) : Color.white
     }
+
+    /// A balance-aware accent that stays recognizable and readable at any amount.
+    /// The logarithmic scale prevents very large balances from flattening the range.
+    static func dynamicHex(for totalBalance: Double) -> String {
+        let base: UIColor
+        if totalBalance < 0 {
+            base = UIColor(Color(hex: dynamicNegativeHex))
+        } else if totalBalance > 0 {
+            base = UIColor(Color(hex: dynamicPositiveHex))
+        } else {
+            base = UIColor(Color(hex: dynamicNeutralHex))
+        }
+
+        let magnitude = min(log10(abs(totalBalance) + 1) / 7, 1)
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard base.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha) else {
+            return totalBalance < 0 ? dynamicNegativeHex : totalBalance > 0 ? dynamicPositiveHex : dynamicNeutralHex
+        }
+
+        let adjustedSaturation = min(1, saturation * (0.72 + 0.28 * magnitude))
+        let adjustedBrightness = min(0.82, brightness + 0.08 * (1 - magnitude))
+        return Color(
+            hue: Double(hue),
+            saturation: Double(adjustedSaturation),
+            brightness: Double(adjustedBrightness)
+        ).toHexRGB() ?? dynamicPositiveHex
+    }
 }
 
 extension Color {
@@ -151,5 +185,16 @@ extension Color {
         let gi = Int((g * 255).rounded())
         let bi = Int((b * 255).rounded())
         return String(format: "#%02X%02X%02X", ri, gi, bi)
+    }
+}
+
+private struct AppAccentColorKey: EnvironmentKey {
+    static let defaultValue = Color(hex: AppAccent.defaultHex)
+}
+
+extension EnvironmentValues {
+    var appAccentColor: Color {
+        get { self[AppAccentColorKey.self] }
+        set { self[AppAccentColorKey.self] = newValue }
     }
 }

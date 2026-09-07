@@ -2,8 +2,8 @@ import SwiftUI
 
 enum OnboardingLayout {
     static let totalSteps = 4
-    static let horizontalPadding: CGFloat = 20
-    static let corner: CGFloat = 16
+    static let horizontalPadding: CGFloat = MoneyLayout.pageInset
+    static let corner: CGFloat = MoneyLayout.cardRadius
 }
 
 struct OnboardingScaffold<Content: View, Footer: View>: View {
@@ -47,12 +47,16 @@ struct OnboardingScaffold<Content: View, Footer: View>: View {
                 .padding(.bottom, 8)
                 .background(.bar)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+        .frame(maxWidth: 640)
+        .frame(maxWidth: .infinity)
+        .background(MoneyPalette.canvas)
         .toolbar(.hidden, for: .navigationBar)
     }
 }
 
 struct OnboardingStepDots: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.appAccentColor) private var accent
     let current: Int
     let total: Int
 
@@ -60,9 +64,9 @@ struct OnboardingStepDots: View {
         HStack(spacing: 6) {
             ForEach(1...total, id: \.self) { index in
                 Capsule()
-                    .fill(index <= current ? Color.accentColor : Color.secondary.opacity(0.25))
+                    .fill(index <= current ? accent : Color.secondary.opacity(0.25))
                     .frame(width: index == current ? 18 : 8, height: 8)
-                    .animation(.easeInOut(duration: 0.2), value: current)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: current)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -79,23 +83,11 @@ struct OnboardingPrimaryButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                Text(title)
-                    .font(.body.weight(.semibold))
-                    .opacity(isLoading ? 0 : 1)
-                if isLoading {
-                    ProgressView()
-                        .tint(.white)
-                }
+                Text(title).opacity(isLoading ? 0 : 1)
+                if isLoading { ProgressView().tint(.primary) }
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .foregroundStyle(.white)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.accentColor.opacity(isEnabled ? 1 : 0.4))
-            )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(MoneyPrimaryButtonStyle())
         .disabled(!isEnabled || isLoading)
     }
 }
@@ -104,17 +96,12 @@ struct OnboardingCard<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        content
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: OnboardingLayout.corner, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
-            )
+        MoneyCard { content }
     }
 }
 
 struct OnboardingSelectRow: View {
+    @Environment(\.appAccentColor) private var accent
     let title: String
     var subtitle: String? = nil
     var systemImage: String? = nil
@@ -127,7 +114,7 @@ struct OnboardingSelectRow: View {
                 if let systemImage {
                     Image(systemName: systemImage)
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                        .foregroundStyle(isSelected ? accent : .secondary)
                         .frame(width: 28)
                 }
 
@@ -146,17 +133,17 @@ struct OnboardingSelectRow: View {
 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.35))
+                    .foregroundStyle(isSelected ? accent : Color.secondary.opacity(0.35))
             }
             .padding(.vertical, 12)
             .padding(.horizontal, 14)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
+                RoundedRectangle(cornerRadius: MoneyLayout.controlRadius, style: .continuous)
+                    .fill(isSelected ? accent.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(isSelected ? Color.accentColor.opacity(0.45) : Color.clear, lineWidth: 1.5)
+                RoundedRectangle(cornerRadius: MoneyLayout.controlRadius, style: .continuous)
+                    .strokeBorder(isSelected ? accent.opacity(0.45) : Color.clear, lineWidth: 1.5)
             }
         }
         .buttonStyle(.plain)
@@ -191,7 +178,7 @@ struct OnboardingField: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: MoneyLayout.controlRadius, style: .continuous)
                     .fill(Color(uiColor: .secondarySystemGroupedBackground))
             )
         }

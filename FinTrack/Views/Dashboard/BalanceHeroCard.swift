@@ -8,19 +8,14 @@ struct BalanceHeroCard: View {
     let currencyCode: String
 
     @AppStorage(AppStorageKeys.hideBalance) private var hideBalance = false
-    @AppStorage(AppStorageKeys.appAccentHex) private var appAccentHex = AppAccent.defaultHex
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appAccentColor) private var accentColor
     @State private var animationProgress: Double = 0
 
-    private let incomeColor = Color(hex: "#268F6B")
-    private let expenseColor = Color(hex: "#FF453A")
+    private let incomeColor = MoneyPalette.income
+    private let expenseColor = MoneyPalette.expense
 
     private var monthDelta: Double {
         monthIncome - monthExpense
-    }
-
-    private var accentColor: Color {
-        Color(hex: appAccentHex)
     }
 
     private var balanceText: String {
@@ -30,125 +25,71 @@ struct BalanceHeroCard: View {
     var body: some View {
         cardBody
             .chartAppearAnimation($animationProgress)
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(accessibilitySummary)
+
     }
 
     private var cardBody: some View {
-        DashboardCard(verticalPadding: 22, surfaceOverlay: {
-            accentWash
-                .allowsHitTesting(false)
-        }) {
-            VStack(alignment: .leading, spacing: 10) {
-                headerRow
-                balanceLink
-            }
-            .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
-        }
-    }
+        MoneyCard(tinted: true) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Label("Общий баланс", systemImage: "wallet.bifold")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    Button { hideBalance.toggle() } label: {
+                        Image(systemName: hideBalance ? "eye.slash" : "eye")
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(hideBalance ? "Показать баланс" : "Скрыть баланс")
+                }
 
-    private var headerRow: some View {
-        HStack(alignment: .center, spacing: 8) {
-            Text("Общий баланс")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                Text(hideBalance ? "••••" : balanceText)
+                    .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                    .monospacedDigit()
+                    .fixedSize(horizontal: false, vertical: true)
+                    .contentTransition(.numericText())
+                    .accessibilityLabel(hideBalance ? "Общий баланс скрыт" : "Общий баланс \(balanceText)")
 
-            Spacer(minLength: 8)
+                if !hideBalance {
+                    Text(deltaText)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(monthDelta == 0 ? Color.secondary : (monthDelta > 0 ? incomeColor : expenseColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            Button {
-                hideBalance.toggle()
-            } label: {
-                Image(systemName: hideBalance ? "eye.slash" : "eye")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(hideBalance ? "Показать баланс" : "Скрыть баланс")
-        }
-    }
-
-    private var balanceLink: some View {
-        NavigationLink {
-            AccountsView()
-        } label: {
-            mainRow
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint("Открыть счета")
-    }
-
-    private var mainRow: some View {
-        HStack(alignment: .bottom, spacing: 12) {
-            VStack(alignment: .leading, spacing: 8) {
-                Group {
-                    if hideBalance {
-                        Text("••••")
-                            .font(.system(.largeTitle, design: .rounded).weight(.bold))
-                            .foregroundStyle(.primary)
-                    } else {
-                        Text(balanceText)
-                            .font(.system(.largeTitle, design: .rounded).weight(.bold))
-                            .minimumScaleFactor(0.6)
-                            .lineLimit(1)
-                            .contentTransition(.numericText())
+                HStack(alignment: .bottom) {
+                    NavigationLink { AccountsView() } label: {
+                        HStack(spacing: 6) {
+                            Text("Счета")
+                            Image(systemName: "arrow.up.right").font(.caption.weight(.semibold))
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 44)
+                        .background(Color.accentColor.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    Spacer(minLength: 12)
+                    if !hideBalance {
+                        BalanceSparkline(points: balancePoints, color: accentColor, progress: animationProgress)
+                            .frame(width: 104, height: 44)
+                            .accessibilityHidden(true)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                deltaChip
-            }
-
-            if !hideBalance {
-                BalanceSparkline(
-                    points: balancePoints,
-                    color: accentColor,
-                    progress: animationProgress
-                )
-                .frame(width: 104, height: 52)
-                .accessibilityHidden(true)
             }
         }
     }
 
-    private var deltaChip: some View {
-        Group {
-            if monthDelta > 0 {
-                Text("+\(CurrencyFormatter.string(amount: monthDelta, currencyCode: currencyCode)) за месяц")
-                    .foregroundStyle(incomeColor)
-            } else if monthDelta < 0 {
-                Text("\(CurrencyFormatter.string(amount: monthDelta, currencyCode: currencyCode)) за месяц")
-                    .foregroundStyle(expenseColor)
-            } else {
-                Text("Без изменений за месяц")
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .font(.caption.weight(.semibold))
-        .lineLimit(1)
-        .minimumScaleFactor(0.85)
+    private var deltaText: String {
+        if monthDelta == 0 { return "Без изменений за месяц" }
+        let prefix = monthDelta > 0 ? "+" : ""
+        return "\(prefix)\(CurrencyFormatter.string(amount: monthDelta, currencyCode: currencyCode)) за месяц"
     }
 
-    private var accentWash: some View {
-        RadialGradient(
-            colors: [
-                accentColor.opacity(colorScheme == .dark ? 0.14 : 0.12),
-                accentColor.opacity(0.04),
-                Color.clear
-            ],
-            center: .topTrailing,
-            startRadius: 0,
-            endRadius: 180
-        )
-    }
 
-    private var accessibilitySummary: String {
-        if hideBalance {
-            return "Общий баланс скрыт"
-        }
-        return "Общий баланс \(balanceText)"
-    }
 }
 
 private struct BalanceSparkline: View {

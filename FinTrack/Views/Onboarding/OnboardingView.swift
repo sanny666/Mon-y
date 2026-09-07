@@ -22,7 +22,7 @@ struct OnboardingView: View {
     let onComplete: () -> Void
 
     @Environment(AppLockController.self) private var lockController
-    @AppStorage(AppStorageKeys.appAccentHex) private var appAccentHex = AppAccent.defaultHex
+    @Environment(\.appAccentColor) private var accent
     @State private var path = NavigationPath()
 
     var body: some View {
@@ -47,7 +47,7 @@ struct OnboardingView: View {
                     }
                 }
         }
-        .tint(Color(hex: appAccentHex))
+        .tint(accent)
     }
 
     @ViewBuilder

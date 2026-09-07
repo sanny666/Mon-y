@@ -22,21 +22,17 @@ struct BudgetsView: View {
             } else {
                 List {
                     ForEach(viewModel.budgets, id: \.id) { budget in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Image(systemName: budget.category?.icon ?? "tag")
-                                    .foregroundStyle(Color(hex: budget.category?.colorHex ?? "#268F6B"))
-                                Text(budget.category?.name ?? "Категория")
-                                    .font(.headline)
-                                Spacer()
-                                Text("\(CurrencyFormatter.string(amount: budget.currentSpent, currencyCode: defaultCurrency)) / \(CurrencyFormatter.string(amount: budget.limitAmount, currencyCode: defaultCurrency))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            ProgressView(value: budget.progress)
-                                .tint(progressTint(for: budget.spendRatio))
-                        }
-                        .padding(.vertical, 4)
+                        MoneyProgressSummary(
+                            title: budget.category?.name ?? "Категория",
+                            icon: budget.category?.icon ?? "tag",
+                            color: progressTint(for: budget.spendRatio),
+                            current: CurrencyFormatter.string(amount: budget.currentSpent, currencyCode: defaultCurrency),
+                            target: CurrencyFormatter.string(amount: budget.limitAmount, currencyCode: defaultCurrency),
+                            progress: budget.progress,
+                            status: budget.spendRatio >= 1
+                                ? "Лимит исчерпан"
+                                : "Осталось " + CurrencyFormatter.string(amount: max(budget.limitAmount - budget.currentSpent, 0), currencyCode: defaultCurrency)
+                        )
                     }
                     .onDelete { indexSet in
                         for index in indexSet {
@@ -47,6 +43,7 @@ struct BudgetsView: View {
                 .appGroupedList()
             }
         }
+        .background(MoneyPalette.canvas)
         .navigationTitle("Бюджеты")
         .toolbarTitleDisplayMode(.large)
         .glassAddFAB(isVisible: !isLoading, accessibilityLabel: "Новый бюджет") {
@@ -66,7 +63,7 @@ struct BudgetsView: View {
     }
 
     private func progressTint(for ratio: Double) -> Color {
-        if ratio >= 1 { return .red }
+        if ratio >= 1 { return MoneyPalette.expense }
         if ratio >= 0.8 { return .orange }
         return .accentColor
     }
@@ -92,10 +89,14 @@ struct BudgetEditorView: View {
                 }
                 TextField("Лимит", text: $limitText)
                     .keyboardType(.decimalPad)
+                    .font(.system(.title2, design: .rounded).weight(.semibold))
+                    .monospacedDigit()
                 Text("Период: месяц")
                     .foregroundStyle(.secondary)
             }
         }
+        .appGroupedList()
+        .background(MoneyPalette.canvas)
         .navigationTitle("Новый бюджет")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

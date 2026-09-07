@@ -57,6 +57,7 @@ struct VoiceTransactionConfirmView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section { typePicker }
                 if !transcript.isEmpty {
                     Section {
                         Text(transcript)
@@ -70,7 +71,8 @@ struct VoiceTransactionConfirmView: View {
                 Section {
                     TextField("Сумма", text: $amountText)
                         .keyboardType(.decimalPad)
-                        .font(.title2.weight(.semibold))
+                        .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                        .monospacedDigit()
 
                     if type != .transfer {
                         TextField("На что", text: $note, axis: .vertical)
@@ -134,14 +136,12 @@ struct VoiceTransactionConfirmView: View {
                     DatePicker("Дата", selection: $date, displayedComponents: [.date, .hourAndMinute])
                 }
             }
+            .appGroupedList()
             .navigationTitle("Подтверждение")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ModalCloseToolbarItem { dismiss() }
                 ModalConfirmToolbarItem(isDisabled: !canSave) { save() }
-                ToolbarItem(placement: .principal) {
-                    typePicker
-                }
             }
             .onAppear { load() }
             .onChange(of: type) { _, _ in
@@ -172,26 +172,7 @@ struct VoiceTransactionConfirmView: View {
     }
 
     private var typePicker: some View {
-        HStack(spacing: 18) {
-            ForEach(TransactionType.allCases) { item in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        type = item
-                    }
-                } label: {
-                    VStack(spacing: 6) {
-                        Text(item.title)
-                            .font(.subheadline.weight(type == item ? .semibold : .regular))
-                            .foregroundStyle(type == item ? .primary : .secondary)
-                        Capsule()
-                            .fill(type == item ? Color.accentColor : Color.clear)
-                            .frame(height: 3)
-                            .frame(maxWidth: 36)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-        }
+        MoneyPeriodPicker(title: "Тип операции", values: [TransactionType.expense, .income, .transfer], selection: $type, label: { $0.title })
     }
 
     private func load() {

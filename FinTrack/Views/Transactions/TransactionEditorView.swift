@@ -4,6 +4,7 @@ import UIKit
 
 struct TransactionEditorView: View {
     @Environment(AppContainer.self) private var container
+    @Environment(\.appAccentColor) private var accentColor
     @Environment(\.dismiss) private var dismiss
 
     let transaction: Transaction?
@@ -35,6 +36,19 @@ struct TransactionEditorView: View {
     @State private var voiceDictionaryItemName: String?
     @State private var voiceMatchHint: String?
     @State private var suppressTypeCategoryReset = false
+    @State private var showCategoryPicker = false
+    @State private var showAccountEditor = false
+    @State private var showAdditional = false
+    @State private var loadError: String?
+    @State private var pendingTransaction: Transaction?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable { case amount, note, tag }
+
+    private var currencyCode: String {
+        accounts.first(where: { $0.id == selectedAccountID })?.currency ?? AppCurrency.kzt.rawValue
+    }
 
     private var filteredRoots: [Category] {
         guard type != .transfer else { return [] }
@@ -56,98 +70,132 @@ struct TransactionEditorView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    TextField("Сумма", text: $amountText)
-                        .keyboardType(.decimalPad)
-                        .font(.title2.weight(.semibold))
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    typeSlider
 
-                    if type != .transfer {
-                        TextField("На что", text: $note, axis: .vertical)
-                            .lineLimit(1...3)
-                            .font(.body)
-                        if let voiceMatchHint {
-                            Text(voiceMatchHint)
-                                .font(.caption)
+                    if let loadError {
+                        MoneyCard { MoneyLoadError(message: loadError, retry: load) }
+                    }
+
+                    MoneyCard(tinted: true) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Сумма · \(currencyCode)")
+                                .font(.subheadline.weight(.medium))
                                 .foregroundStyle(.secondary)
+                            TextField("0", text: $amountText, axis: .vertical)
+                                .keyboardType(.decimalPad)
+                                .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                                .monospacedDigit()
+                                .focused($focusedField, equals: .amount)
+                                .accessibilityLabel("Сумма в \(currencyCode)")
                         }
                     }
-                } footer: {
+
+                    accountSection
+
                     if type != .transfer {
-                        Text("Для крупных покупок можно оставить без подкатегории и просто написать, на что ушло.")
-                    }
-                }
-
-                Section("Счета") {
-                    Picker("Счёт", selection: $selectedAccountID) {
-                        Text("Выберите").tag(Optional<UUID>.none)
-                        ForEach(accounts, id: \.id) { account in
-                            Text(account.name).tag(Optional(account.id))
-                        }
-                    }
-
-                    if type == .transfer {
-                        Picker("Куда", selection: $selectedToAccountID) {
-                            Text("Выберите").tag(Optional<UUID>.none)
-                            ForEach(accounts.filter { $0.id != selectedAccountID }, id: \.id) { account in
-                                Text(account.name).tag(Optional(account.id))
-                            }
-                        }
-                    }
-                }
-
-                if type != .transfer {
-                    Section {
-                        Picker("Категория", selection: $selectedRootCategoryID) {
-                            Text("Без категории").tag(Optional<UUID>.none)
-                            ForEach(filteredRoots, id: \.id) { category in
-                                Text(category.name).tag(Optional(category.id))
-                            }
-                        }
-                        .onChange(of: selectedRootCategoryID) { _, _ in
-                            selectedSubcategoryID = nil
-                        }
-
-                        if !subcategories.isEmpty {
-                            Picker("Подкатегория", selection: $selectedSubcategoryID) {
-                                Text("Без подкатегории").tag(Optional<UUID>.none)
-                                ForEach(subcategories, id: \.id) { category in
-                                    Text(category.name).tag(Optional(category.id))
+                        MoneyCard {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Button {
+                                    focusedField = nil
+                                    showCategoryPicker = true
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        MoneyCategoryIcon(icon: resolvedCategory()?.icon ?? "square.grid.2x2",
+                                                          color: Color(hex: resolvedCategory()?.colorHex ?? AppAccent.defaultHex))
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("Категория").font(.caption).foregroundStyle(.secondary)
+                                            Text(resolvedCategory()?.displayName ?? "Без категории")
+                                                .font(.body.weight(.medium)).foregroundStyle(.primary)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                        Spacer(minLength: 0)
+                                        Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                Divider()
+                                TextField("На что? Необязательно", text: $note, axis: .vertical)
+                                    .lineLimit(1...4)
+                                    .focused($focusedField, equals: .note)
+                                    .frame(minHeight: 44)
+                                if let voiceMatchHint {
+                                    Text(voiceMatchHint).font(.caption).foregroundStyle(.secondary)
                                 }
                             }
                         }
-                    } header: {
-                        Text("Категория")
-                    } footer: {
-                        Text("Подкатегория необязательна — достаточно названия покупки выше.")
+                    }
+
+                    MoneyCard {
+                        if dynamicTypeSize.isAccessibilitySize {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Дата").font(.headline)
+                                DatePicker("Дата", selection: $date, displayedComponents: .date)
+                                    .labelsHidden()
+                                DatePicker("Время", selection: $date, displayedComponents: .hourAndMinute)
+                                    .labelsHidden()
+                            }
+                        } else {
+                            DatePicker("Дата", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                                .datePickerStyle(.compact)
+                        }
+                    }
+
+                    MoneyCard {
+                        DisclosureGroup(isExpanded: $showAdditional) {
+                            VStack(alignment: .leading, spacing: 20) {
+                                tagsEditor
+                                photoEditor
+                            }
+                            .padding(.top, 16)
+                        } label: {
+                            Label("Дополнительно", systemImage: "slider.horizontal.3")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(.primary)
+                                .frame(minHeight: 44)
+                        }
+                        .tint(.primary)
                     }
                 }
-
-                Section {
-                    DatePicker("Дата", selection: $date, displayedComponents: [.date, .hourAndMinute])
-                }
-
-                Section("Дополнительно") {
-                    tagsEditor
-                    photoEditor
-                }
+                .padding(20)
+                .frame(maxWidth: 640)
+                .frame(maxWidth: .infinity)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .background(MoneyPalette.canvas)
+            .navigationTitle(transaction == nil ? "Новая операция" : "Изменить операцию")
             .navigationBarTitleDisplayMode(.inline)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                saveBar
+            }
             .toolbar {
-                ModalCloseToolbarItem { closeEditor() }
-                ModalConfirmToolbarItem(isDisabled: !canSave) { save() }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showVoiceCapture = true
-                    } label: {
-                        Image(systemName: "mic.fill")
-                    }
-                    .accessibilityLabel("Голосовой ввод")
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Закрыть", systemImage: "xmark") { closeEditor() }
+                        .labelStyle(.iconOnly)
                 }
-                ToolbarItem(placement: .principal) {
-                    typeSlider
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Голосовой ввод", systemImage: "mic.fill") {
+                        focusedField = nil
+                        showVoiceCapture = true
+                    }
+                    .labelStyle(.iconOnly)
                 }
             }
+        }
+        .sheet(isPresented: $showCategoryPicker) { categoryPicker }
+        .sheet(isPresented: $showAccountEditor, onDismiss: reloadAccounts) {
+            NavigationStack { AccountEditorView(account: nil) }
+        }
+        .onChange(of: tags) { _, value in
+            if !value.isEmpty { showAdditional = true }
+        }
+        .onChange(of: attachmentURL) { _, value in
+            if value != nil { showAdditional = true }
+        }
+        .onChange(of: pendingJPEG) { _, value in
+            if value != nil { showAdditional = true }
         }
         .onAppear {
             guard !didLoad else { return }
@@ -200,25 +248,161 @@ struct TransactionEditorView: View {
     }
 
     private var typeSlider: some View {
-        HStack(spacing: 18) {
-            ForEach(TransactionType.allCases) { item in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        type = item
+        MoneyPeriodPicker(title: "Тип операции", values: [TransactionType.expense, .income, .transfer],
+                          selection: $type, label: { $0.title })
+    }
+
+    private var accountSection: some View {
+        MoneyCard {
+            VStack(alignment: .leading, spacing: 12) {
+                if accounts.isEmpty {
+                    Text("Добавьте счёт для первой операции")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                    Button { showAccountEditor = true } label: {
+                        Label("Создать счёт", systemImage: "plus.circle.fill").frame(minHeight: 44)
                     }
-                } label: {
-                    VStack(spacing: 6) {
-                        Text(item.title)
-                            .font(.subheadline.weight(type == item ? .semibold : .regular))
-                            .foregroundStyle(type == item ? .primary : .secondary)
-                        Capsule()
-                            .fill(type == item ? Color.accentColor : Color.clear)
-                            .frame(height: 3)
-                            .frame(maxWidth: 36)
+                } else {
+                    accountPicker(title: "Счёт", selection: $selectedAccountID, choices: accounts)
+                    if type == .transfer {
+                        Divider()
+                        accountPicker(title: "Куда", selection: $selectedToAccountID,
+                                      choices: accounts.filter { $0.id != selectedAccountID })
+                        if accounts.count < 2 {
+                            Button("Создать второй счёт") { showAccountEditor = true }.frame(minHeight: 44)
+                        }
                     }
                 }
-                .buttonStyle(.plain)
             }
+        }
+    }
+
+    private func accountPicker(title: String, selection: Binding<UUID?>, choices: [Account]) -> some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 12))
+        return layout {
+            Text(title).font(.body).foregroundStyle(.secondary)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
+            Picker(title, selection: selection) {
+                Text("Выберите").tag(Optional<UUID>.none)
+                ForEach(choices, id: \.id) { account in
+                    Text(account.name).tag(Optional(account.id))
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(.primary)
+            .labelsHidden()
+        }
+        .frame(minHeight: 44)
+    }
+
+    private var saveBar: some View {
+        VStack(spacing: 8) {
+            if !canSave, !amountText.isEmpty {
+                Text(saveHint).font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+            }
+            HStack(spacing: 8) {
+                Button(action: save) {
+                    Text("Сохранить")
+                        .font(.headline)
+                        .padding(.horizontal, 20)
+                        .frame(minHeight: 48)
+                        .frame(maxWidth: .infinity)
+                        .foregroundStyle(.primary)
+                        .background(accentColor.opacity(canSave ? MoneyLayout.accentPillFill : MoneyLayout.accentPillFillDisabled), in: Capsule())
+                }
+                .disabled(!canSave)
+                .opacity(canSave ? 1 : 0.45)
+                if focusedField != nil {
+                    Button { focusedField = nil } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                            .font(.title3.weight(.semibold))
+                            .frame(width: 52, height: 48)
+                            .foregroundStyle(.primary)
+                    }
+                    .accessibilityLabel("Скрыть клавиатуру")
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(6)
+            .moneyGlassCapsule()
+            .frame(maxWidth: 340)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var saveHint: String {
+        if loadError != nil { return "Повторите загрузку данных" }
+        guard let amount = Double(amountText.replacingOccurrences(of: ",", with: ".")), amount.isFinite, amount > 0 else {
+            return "Введите сумму больше нуля"
+        }
+        if selectedAccountID == nil { return "Выберите счёт" }
+        return "Выберите другой счёт для перевода"
+    }
+
+    private var categoryPicker: some View {
+        NavigationStack {
+            List {
+                categoryChoice(nil, title: "Без категории")
+                ForEach(filteredRoots, id: \.id) { root in
+                    Section {
+                        categoryChoice(root, title: root.name)
+                        ForEach(root.children.filter { !$0.isDeleted }.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }, id: \.id) { child in
+                            categoryChoice(child, title: child.name)
+                                .padding(.leading, 16)
+                        }
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("Категория")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Закрыть") { showCategoryPicker = false }
+                }
+            }
+        }
+    }
+
+    private func categoryChoice(_ category: Category?, title: String) -> some View {
+        Button {
+            if let category {
+                applyCategoryID(category.id)
+            } else {
+                selectedRootCategoryID = nil
+                selectedSubcategoryID = nil
+            }
+            showCategoryPicker = false
+        } label: {
+            HStack(spacing: 12) {
+                MoneyCategoryIcon(icon: category?.icon ?? "square.grid.2x2",
+                                  color: Color(hex: category?.colorHex ?? AppAccent.defaultHex))
+                Text(title).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                if resolvedCategory()?.id == category?.id {
+                    Image(systemName: "checkmark").font(.body.weight(.semibold))
+                }
+            }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(resolvedCategory()?.id == category?.id ? .isSelected : [])
+    }
+
+    private func reloadAccounts() {
+        do {
+            accounts = try container.accounts.fetchAll()
+            if !accounts.contains(where: { $0.id == selectedAccountID }) {
+                selectedAccountID = DefaultAccountResolver.resolvedID(from: accounts)
+            }
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -241,13 +425,14 @@ struct TransactionEditorView: View {
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(Color.accentColor.opacity(0.12))
+                        .background(accentColor.opacity(0.12))
                         .clipShape(Capsule())
                     }
                 }
             }
 
             TextField("Тег (Enter или запятая)", text: $tagDraft)
+                .focused($focusedField, equals: .tag)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .onSubmit(commitTagDraft)
@@ -302,9 +487,9 @@ struct TransactionEditorView: View {
 
     private var canSave: Bool {
         let amount = Double(amountText.replacingOccurrences(of: ",", with: ".")) ?? 0
-        guard amount > 0, selectedAccountID != nil else { return false }
+        guard loadError == nil, amount.isFinite, amount > 0, accounts.contains(where: { $0.id == selectedAccountID }) else { return false }
         if type == .transfer {
-            return selectedToAccountID != nil && selectedToAccountID != selectedAccountID
+            return accounts.contains(where: { $0.id == selectedToAccountID }) && selectedToAccountID != selectedAccountID
         }
         return true
     }
@@ -324,7 +509,9 @@ struct TransactionEditorView: View {
         do {
             accounts = try container.accounts.fetchAll()
             rootCategories = try container.categories.fetchRoots()
+            loadError = nil
             if let transaction {
+                suppressTypeCategoryReset = true
                 amountText = String(format: "%g", transaction.amount)
                 type = transaction.type
                 date = transaction.date
@@ -344,10 +531,12 @@ struct TransactionEditorView: View {
                         selectedSubcategoryID = nil
                     }
                 }
+                Task { @MainActor in suppressTypeCategoryReset = false }
                 let remoteURL = transaction.attachmentURL
                 Task {
                     if attachmentPreview == nil,
-                       let image = await container.loadAttachmentImage(urlString: remoteURL) {
+                       let image = await container.loadAttachmentImage(urlString: remoteURL),
+                       attachmentURL == remoteURL, pendingJPEG == nil {
                         attachmentPreview = image
                     }
                 }
@@ -369,8 +558,9 @@ struct TransactionEditorView: View {
                     note = initialNote
                 }
             }
+            showAdditional = !tags.isEmpty || attachmentURL != nil || pendingJPEG != nil
         } catch {
-            errorMessage = error.localizedDescription
+            loadError = error.localizedDescription
         }
     }
 
@@ -515,6 +705,7 @@ struct TransactionEditorView: View {
     }
 
     private func save() {
+        guard canSave else { return }
         commitTagDraft()
         let amount = Double(amountText.replacingOccurrences(of: ",", with: ".")) ?? 0
         guard let accountID = selectedAccountID,
@@ -528,13 +719,11 @@ struct TransactionEditorView: View {
             let resolvedAttachmentURL: String?
             if let pendingJPEG {
                 resolvedAttachmentURL = try AttachmentStore.saveLocalJPEG(pendingJPEG)
-            } else if attachmentPreview == nil {
-                resolvedAttachmentURL = nil
             } else {
                 resolvedAttachmentURL = attachmentURL
             }
 
-            if let transaction {
+            if let transaction = transaction ?? pendingTransaction {
                 transaction.amount = amount
                 transaction.type = type
                 transaction.date = date
@@ -557,6 +746,8 @@ struct TransactionEditorView: View {
                     category: category,
                     attachmentURL: resolvedAttachmentURL
                 )
+                // Reuse this draft after a failed save; a repository may have already inserted it.
+                pendingTransaction = item
                 try container.transactions.save(item)
             }
 
@@ -564,7 +755,7 @@ struct TransactionEditorView: View {
                let category,
                let dictionaryName = voiceDictionaryItemName ?? (note.isEmpty ? nil : note.trimmingCharacters(in: .whitespacesAndNewlines)),
                !dictionaryName.isEmpty {
-                try container.itemDictionary.upsert(name: dictionaryName, category: category)
+                try? container.itemDictionary.upsert(name: dictionaryName, category: category)
             }
 
             container.recalculateBudgets()
@@ -572,6 +763,7 @@ struct TransactionEditorView: View {
             if fromSharedInbox {
                 ReceiptInbox.clear()
             }
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

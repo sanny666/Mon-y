@@ -32,6 +32,7 @@ struct CategoriesView: View {
                 .appGroupedList()
             }
         }
+        .background(MoneyPalette.canvas)
         .navigationTitle("Категории")
         .toolbarTitleDisplayMode(.large)
         .glassAddFAB(isVisible: !isLoading, accessibilityLabel: "Новая категория") {
@@ -89,9 +90,7 @@ struct CategoriesView: View {
                             editing = child
                         } label: {
                             HStack {
-                                Image(systemName: child.icon)
-                                    .foregroundStyle(Color(hex: child.colorHex))
-                                    .frame(width: 28)
+                                MoneyCategoryIcon(icon: child.icon, color: Color(hex: child.colorHex))
                                 Text(child.name)
                                     .foregroundStyle(.primary)
                                 Spacer()
@@ -116,14 +115,12 @@ struct CategoriesView: View {
                         editing = category
                     } label: {
                         HStack {
-                            Image(systemName: category.icon)
-                                .foregroundStyle(Color(hex: category.colorHex))
-                                .frame(width: 28)
+                            MoneyCategoryIcon(icon: category.icon, color: Color(hex: category.colorHex))
                             Text(category.name)
                                 .foregroundStyle(.primary)
                                 .fontWeight(.medium)
                             Spacer()
-                            Text("\(category.children.count)")
+                            Text("\(category.children.filter { !$0.isDeleted }.count)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -188,6 +185,8 @@ struct CategoryEditorView: View {
                 IconColorPicker(icon: $icon, colorHex: $colorHex, icons: IconPalette.categoryIcons)
             }
         }
+        .appGroupedList()
+        .background(MoneyPalette.canvas)
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

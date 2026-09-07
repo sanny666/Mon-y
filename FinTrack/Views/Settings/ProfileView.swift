@@ -221,18 +221,19 @@ struct ProfileView: View {
 }
 
 struct ProfileAvatar: View {
+    @Environment(\.appAccentColor) private var accent
     let initials: String
     var size: CGFloat = 32
 
     var body: some View {
         Text(initials)
             .font(size >= 44 ? .title3.weight(.semibold) : .caption.weight(.semibold))
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(accent)
             .frame(width: size, height: size)
-            .background(Color.accentColor.opacity(0.16), in: Circle())
+            .background(accent.opacity(0.16), in: Circle())
             .overlay {
                 Circle()
-                    .strokeBorder(Color.accentColor.opacity(0.22), lineWidth: 1)
+                    .strokeBorder(accent.opacity(0.22), lineWidth: 1)
             }
             .accessibilityHidden(true)
     }
@@ -309,11 +310,10 @@ struct ScreenHeader: View {
             HStack(alignment: .center, spacing: 12) {
                 Text(title)
                     .font(.largeTitle.bold())
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
                 if showsProfile {
-                    ProfileButton(diameter: 34)
+                    ProfileButton(diameter: 44)
                 }
             }
             if let subtitle, !subtitle.isEmpty {
@@ -323,8 +323,7 @@ struct ScreenHeader: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 24)
-        .accessibilityElement(children: .combine)
+        .padding(.top, 16)
     }
 }
 
@@ -336,12 +335,14 @@ private struct LargeScreenTitleModifier: ViewModifier {
     func body(content: Content) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ScreenHeader(title: title, subtitle: subtitle, showsProfile: showsProfile)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, MoneyLayout.pageInset)
+                .frame(maxWidth: MoneyLayout.contentWidth)
+                .frame(maxWidth: .infinity)
                 .padding(.bottom, 8)
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+        .background(MoneyPalette.canvas)
         .toolbar(.hidden, for: .navigationBar)
     }
 }

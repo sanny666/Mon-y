@@ -7,6 +7,8 @@ struct SettingsView: View {
     @AppStorage(AppStorageKeys.defaultAccountID) private var defaultAccountID = ""
     @AppStorage(AppStorageKeys.appTheme) private var appThemeRaw = AppTheme.system.rawValue
     @AppStorage(AppStorageKeys.appAccentHex) private var appAccentHex = AppAccent.defaultHex
+    @AppStorage(AppStorageKeys.dynamicAccentEnabled) private var dynamicAccentEnabled = false
+    @Environment(\.appAccentColor) private var effectiveAccent
     @AppStorage(AppStorageKeys.faceIDEnabled) private var faceIDEnabled = false
     @State private var showBiometryUnavailable = false
     @State private var biometryAlertMessage = ""
@@ -34,7 +36,8 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Основные") {
+            Section {
+                MoneyEntityRow(title: "Основные", subtitle: "Валюта и счёт для новых операций", icon: "wallet.bifold", color: SemanticIcon.goal)
                 Picker("Валюта по умолчанию", selection: $defaultCurrency) {
                     ForEach(AppCurrency.allCases) { currency in
                         Text(currency.title).tag(currency.rawValue)
@@ -50,10 +53,29 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Оформление") {
+            Section {
+                MoneyEntityRow(title: "Оформление", subtitle: "Тема и ваш цвет акцента", icon: "paintpalette", color: SemanticIcon.tag)
                 Picker("Тема", selection: $appThemeRaw) {
                     ForEach(AppTheme.allCases) { theme in
                         Text(theme.title).tag(theme.rawValue)
+                    }
+                }
+
+                Toggle("Динамический акцент", isOn: $dynamicAccentEnabled)
+
+                if dynamicAccentEnabled {
+                    HStack {
+                        Text("Цвет по балансу")
+                        Spacer()
+                        Circle()
+                            .fill(effectiveAccent)
+                            .frame(width: 22, height: 22)
+                            .overlay {
+                                Circle()
+                                    .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
+                            }
+                        Text(dynamicAccentDescription)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -74,9 +96,11 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .disabled(dynamicAccentEnabled)
             }
 
             Section {
+                MoneyEntityRow(title: "Безопасность", subtitle: "PIN и быстрый вход", icon: "lock.shield", color: SemanticIcon.settings)
                 LabeledContent("PIN-код", value: lockController.hasPIN ? "Установлен" : "Не задан")
                 Button("Сменить PIN") {
                     resetChangePIN()
@@ -91,8 +115,6 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            } header: {
-                Text("Безопасность")
             } footer: {
                 if lockController.isBiometryAvailable {
                     Text("PIN обязателен. \(lockController.biometryTitle) — быстрый вход. Повторный запрос — при запуске и если приложение свёрнуто дольше минуты.")
@@ -158,6 +180,12 @@ struct SettingsView: View {
         let version = info?["CFBundleShortVersionString"] as? String ?? "—"
         let build = info?["CFBundleVersion"] as? String ?? "—"
         return "Версия \(version) (\(build))"
+    }
+
+    private var dynamicAccentDescription: String {
+        if container.totalBalance < 0 { return "Отрицательный" }
+        if container.totalBalance > 0 { return "Положительный" }
+        return "Нулевой"
     }
 
     private var changePINTitle: String {

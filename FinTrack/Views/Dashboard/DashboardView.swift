@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @Environment(AppContainer.self) private var container
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage(AppStorageKeys.defaultCurrency) private var defaultCurrency = AppCurrency.kzt.rawValue
     @State private var viewModel = DashboardViewModel()
     @State private var showAddTransaction = false
@@ -9,6 +10,7 @@ struct DashboardView: View {
     @State private var voiceDraft: VoiceTransactionDraft?
     @State private var voiceErrorMessage: String?
     @State private var isLoading = true
+    @State private var editingTransaction: Transaction?
     var onOpenTransactions: () -> Void = {}
     var onOpenAnalytics: () -> Void = {}
 
@@ -16,51 +18,71 @@ struct DashboardView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    BalanceHeroCard(
-                        totalBalance: viewModel.totalBalance,
-                        monthIncome: viewModel.monthIncome,
-                        monthExpense: viewModel.monthExpense,
-                        balancePoints: viewModel.balancePoints,
-                        currencyCode: viewModel.currencyCode
-                    )
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(Greeting.title()).font(.title2.bold())
+                            Text(dynamicTypeSize.isAccessibilitySize ? Date.now.formatted(.dateTime.day().month(.wide).locale(Locale(identifier: "ru_RU"))) : Greeting.subtitle())
+                                .font(.subheadline).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 8)
+                        ProfileButton(diameter: 44)
+                    }
+                    .padding(.vertical, 8)
 
-                    IncomeExpenseDonutCarousel(
-                        todayIncome: viewModel.todayIncome,
-                        todayExpense: viewModel.todayExpense,
-                        weekIncome: viewModel.weekIncome,
-                        weekExpense: viewModel.weekExpense,
-                        monthIncome: viewModel.monthIncome,
-                        monthExpense: viewModel.monthExpense,
-                        currencyCode: viewModel.currencyCode
-                    )
+                    if let error = viewModel.errorMessage {
+                        MoneyCard { MoneyLoadError(message: error, retry: reload) }
+                    }
 
-                    HealthExpenseChart(
-                        points: viewModel.expenseTrend,
-                        currencyCode: viewModel.currencyCode,
-                        onOpenDetails: onOpenAnalytics
-                    )
+                    if viewModel.errorMessage == nil {
+                        BalanceHeroCard(
+                            totalBalance: viewModel.totalBalance,
+                            monthIncome: viewModel.monthIncome,
+                            monthExpense: viewModel.monthExpense,
+                            balancePoints: viewModel.balancePoints,
+                            currencyCode: viewModel.currencyCode
+                        )
 
-                    recentSection
+                        MoneyPeriodSummary(
+                            todayIncome: viewModel.todayIncome,
+                            todayExpense: viewModel.todayExpense,
+                            weekIncome: viewModel.weekIncome,
+                            weekExpense: viewModel.weekExpense,
+                            monthIncome: viewModel.monthIncome,
+                            monthExpense: viewModel.monthExpense,
+                            currencyCode: viewModel.currencyCode
+                        )
+
+                        recentSection
+
+                        HealthExpenseChart(
+                            points: viewModel.expenseTrend,
+                            currencyCode: viewModel.currencyCode,
+                            onOpenDetails: onOpenAnalytics
+                        )
+                    }
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 108)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+                .frame(maxWidth: 720)
+                .frame(maxWidth: .infinity)
             }
-            .background(Color(uiColor: .systemGroupedBackground))
+            .background(MoneyPalette.canvas)
             .overlay {
                 if isLoading {
-                    DashboardSkeletonContent()
+                    MoneyDashboardSkeleton()
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .background(Color(uiColor: .systemGroupedBackground))
+                        .background(MoneyPalette.canvas)
                         .allowsHitTesting(false)
                 }
             }
-            .largeScreenTitle(Greeting.title(), subtitle: Greeting.subtitle(), showsProfile: true)
-            .glassAddFAB(
-                isVisible: !isLoading,
-                accessibilityLabel: "Новая транзакция",
-                micAction: { showVoiceCapture = true }
-            ) {
-                showAddTransaction = true
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if !isLoading {
+                    MoneyActionBar(add: { showAddTransaction = true }, voice: { showVoiceCapture = true })
+                }
+            }
+            .sheet(item: $editingTransaction, onDismiss: reload) { transaction in
+                TransactionEditorView(transaction: transaction)
             }
             .sheet(isPresented: $showAddTransaction) {
                 TransactionEditorView(transaction: nil)
@@ -96,14 +118,18 @@ struct DashboardView: View {
     }
 
     private var recentSection: some View {
-        DashboardCard {
-            VStack(alignment: .leading, spacing: 12) {
-                DashboardSectionHeader(
-                    title: "Последние",
-                    systemImage: "list.bullet.rectangle",
-                    tint: SemanticIcon.list,
-                    action: onOpenTransactions
-                )
+        MoneyCard {
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Последние операции").font(.headline)
+                    Button(action: onOpenTransactions) {
+                        Label("Все операции", systemImage: "chevron.right")
+                    }
+                    .foregroundStyle(Color.accentColor)
+                    .font(.subheadline.weight(.semibold))
+                    .buttonStyle(.plain)
+                        .frame(minHeight: 44)
+                }
 
                 if viewModel.recentTransactions.isEmpty {
                     EmptyStateView(
@@ -116,7 +142,11 @@ struct DashboardView: View {
                     .frame(minHeight: 140)
                 } else {
                     ForEach(Array(viewModel.recentTransactions.enumerated()), id: \.element.id) { index, tx in
-                        TransactionRowView(transaction: tx, currencyCode: viewModel.currencyCode)
+                        Button { editingTransaction = tx } label: {
+                            MoneyTransactionRow(transaction: tx, currencyCode: tx.account?.currency ?? viewModel.currencyCode)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Изменить операцию")
                         if index < viewModel.recentTransactions.count - 1 {
                             Divider()
                                 .opacity(0.6)

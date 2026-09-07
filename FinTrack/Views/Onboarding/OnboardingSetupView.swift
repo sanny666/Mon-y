@@ -2,8 +2,8 @@ import SwiftUI
 
 struct OnboardingSetupView: View {
     @Environment(AppContainer.self) private var container
+    @Environment(\.appAccentColor) private var accentColor
     @AppStorage(AppStorageKeys.defaultCurrency) private var defaultCurrency = AppCurrency.kzt.rawValue
-    @AppStorage(AppStorageKeys.appAccentHex) private var appAccentHex = AppAccent.defaultHex
 
     let onComplete: () -> Void
 
@@ -103,7 +103,7 @@ struct OnboardingSetupView: View {
             currency: selectedCurrency.rawValue,
             initialBalance: balance,
             icon: accountType.systemImage + ".fill",
-            colorHex: appAccentHex
+            colorHex: accentColor.toHexRGB() ?? AppAccent.defaultHex
         )
         do {
             try container.accounts.save(account)

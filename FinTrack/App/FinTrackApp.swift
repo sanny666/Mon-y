@@ -35,6 +35,7 @@ struct FinTrackApp: App {
             Transaction.self,
             Budget.self,
             Goal.self,
+            Debt.self,
             RecurringTransaction.self,
             ItemDictionaryEntry.self
         ])
@@ -53,6 +54,7 @@ struct RootView: View {
     @AppStorage(AppStorageKeys.hasCompletedOnboarding) private var hasCompletedOnboarding = false
     @AppStorage(AppStorageKeys.appTheme) private var appThemeRaw = AppTheme.system.rawValue
     @AppStorage(AppStorageKeys.appAccentHex) private var appAccentHex = AppAccent.defaultHex
+    @AppStorage(AppStorageKeys.dynamicAccentEnabled) private var dynamicAccentEnabled = false
     @AppStorage(AppStorageKeys.faceIDEnabled) private var faceIDEnabled = false
     @State private var appContainer: AppContainer?
     @State private var chartEntrance = ChartEntranceController()
@@ -68,6 +70,11 @@ struct RootView: View {
         case .light: return .light
         case .dark: return .dark
         }
+    }
+
+    private var effectiveAccent: Color {
+        guard dynamicAccentEnabled else { return Color(hex: appAccentHex) }
+        return Color(hex: AppAccent.dynamicHex(for: appContainer?.totalBalance ?? 0))
     }
 
     /// App lock requires a PIN set during onboarding.
@@ -108,8 +115,9 @@ struct RootView: View {
             }
         }
         .environment(chartEntrance)
+        .environment(\.appAccentColor, effectiveAccent)
         .preferredColorScheme(preferredScheme)
-        .tint(Color(hex: appAccentHex))
+        .tint(effectiveAccent)
         .overlay {
             if shouldGateWithLock, lockController.isLocked, !isQuickAddActive {
                 AppLockView(
@@ -136,8 +144,9 @@ struct RootView: View {
                     .environment(appContainer)
                     .environment(appContainer.voiceInput)
                     .environment(lockController)
+                    .environment(\.appAccentColor, effectiveAccent)
                     .preferredColorScheme(preferredScheme)
-                    .tint(Color(hex: appAccentHex))
+                    .tint(effectiveAccent)
             }
         }
         .onAppear {

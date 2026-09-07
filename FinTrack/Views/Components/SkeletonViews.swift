@@ -217,7 +217,7 @@ struct DashboardSkeleton: View {
             DashboardSkeletonContent()
         }
         .scrollDisabled(true)
-        .background(Color(uiColor: .systemGroupedBackground))
+        .background(MoneyPalette.canvas)
         .allowsHitTesting(false)
     }
 }
@@ -244,7 +244,7 @@ struct AnalyticsSkeleton: View {
             .padding(.horizontal, 16)
         }
         .scrollDisabled(true)
-        .background(Color(uiColor: .systemGroupedBackground))
+        .background(MoneyPalette.canvas)
         .skeletonPulse()
         .allowsHitTesting(false)
     }

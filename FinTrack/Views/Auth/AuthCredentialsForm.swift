@@ -64,6 +64,7 @@ struct AuthCredentialsForm: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
+                .buttonStyle(MoneyPrimaryButtonStyle())
                 .disabled(!canSubmit || isLoading)
             } footer: {
                 if let footer {
@@ -71,5 +72,6 @@ struct AuthCredentialsForm: View {
                 }
             }
         }
+        .appGroupedList()
     }
 }

@@ -1,9 +1,6 @@
 import SwiftUI
 
 struct DashboardCard<Content: View, SurfaceOverlay: View>: View {
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
     var verticalPadding: CGFloat = 16
     @ViewBuilder var content: Content
     @ViewBuilder var surfaceOverlay: SurfaceOverlay
@@ -20,7 +17,7 @@ struct DashboardCard<Content: View, SurfaceOverlay: View>: View {
 
     var body: some View {
         content
-            .padding(.horizontal, 16)
+            .padding(.horizontal, MoneyLayout.pageInset)
             .padding(.vertical, verticalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
@@ -28,21 +25,10 @@ struct DashboardCard<Content: View, SurfaceOverlay: View>: View {
                     .overlay {
                         surfaceOverlay
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: MoneyLayout.cardRadius, style: .continuous))
             }
-            .shadow(
-                color: shadowColor,
-                radius: reduceTransparency ? 0 : (colorScheme == .dark ? 0 : 4),
-                x: 0,
-                y: reduceTransparency ? 0 : (colorScheme == .dark ? 0 : 2)
-            )
     }
 
-    private var shadowColor: Color {
-        colorScheme == .dark
-            ? .clear
-            : Color.black.opacity(0.05)
-    }
 }
 
 extension DashboardCard where SurfaceOverlay == EmptyView {
@@ -56,99 +42,12 @@ extension DashboardCard where SurfaceOverlay == EmptyView {
 
 /// Shared card chrome for dashboard tiles and analytics blocks.
 struct AppCardSurface: View {
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    var cornerRadius: CGFloat = 22
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-
-        if colorScheme == .dark {
-            shape
-                .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                .overlay {
-                    shape.strokeBorder(darkEdgeGlass, lineWidth: 1)
-                }
-        } else if reduceTransparency {
-            shape
-                .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                .overlay {
-                    shape.strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
-                }
-        } else {
-            shape
-                .fill(.thickMaterial)
-                .overlay {
-                    shape
-                        .fill(lightSpecularFill)
-                        .allowsHitTesting(false)
-                }
-                .overlay {
-                    shape
-                        .strokeBorder(lightRimGradient, lineWidth: 1)
-                }
-        }
-    }
-
-    private var darkEdgeGlass: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color.white.opacity(0.14),
-                Color.white.opacity(0.05),
-                Color.white.opacity(0.03)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-
-    private var lightSpecularFill: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color.white.opacity(0.42),
-                Color.white.opacity(0.12),
-                Color.clear
-            ],
-            startPoint: .topLeading,
-            endPoint: UnitPoint(x: 0.55, y: 0.65)
-        )
-    }
-
-    private var lightRimGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color.white.opacity(0.7),
-                Color.white.opacity(0.2),
-                Color.black.opacity(0.1)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
+    var cornerRadius: CGFloat = MoneyLayout.cardRadius
+    var body: some View { MoneyCardSurface(cornerRadius: cornerRadius) }
 }
 
-/// Matches dashboard card fill inside system grouped lists.
 struct AppListRowBackground: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        Color(uiColor: .secondarySystemGroupedBackground)
-            .overlay(alignment: .top) {
-                if colorScheme == .dark {
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.08),
-                            Color.clear
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 1)
-                    .allowsHitTesting(false)
-                }
-            }
-    }
+    var body: some View { Color(uiColor: .secondarySystemGroupedBackground) }
 }
 
 extension View {
@@ -157,8 +56,13 @@ extension View {
         self
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
-            .background(Color(uiColor: .systemGroupedBackground))
+            .background(MoneyPalette.canvas)
             .listRowBackground(AppListRowBackground())
+            .contentMargins(.top, 12, for: .scrollContent)
+            .environment(\.defaultMinListRowHeight, 52)
+            .frame(maxWidth: MoneyLayout.contentWidth)
+            .frame(maxWidth: .infinity)
+            .background(MoneyPalette.canvas)
     }
 }
 
@@ -195,8 +99,7 @@ struct DashboardSectionHeader: View {
             Text(title)
                 .font(compact ? .subheadline.weight(.semibold) : .headline)
                 .foregroundStyle(tintTitle ? tint : Color.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             if action != nil {
                 Image(systemName: "chevron.right")

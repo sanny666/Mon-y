@@ -6,12 +6,10 @@ struct AppLockView: View {
     var onBiometricUnlock: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(AppStorageKeys.appAccentHex) private var appAccentHex = AppAccent.defaultHex
+    @Environment(\.appAccentColor) private var accent
     @State private var pin = ""
     @State private var appeared = false
     @State private var didAutoPrompt = false
-
-    private var accent: Color { Color(hex: appAccentHex) }
 
     var body: some View {
         ZStack {

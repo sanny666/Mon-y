@@ -133,7 +133,7 @@ struct AnalyticsService {
                 case .expense:
                     expense += tx.amount
                     hasData = true
-                case .transfer:
+                case .transfer, .debtBorrow, .debtLend, .debtRepay, .debtReceive:
                     break
                 }
             }
@@ -195,9 +195,9 @@ struct AnalyticsService {
 
     private func balanceDelta(for tx: Transaction) -> Double {
         switch tx.type {
-        case .income:
+        case .income, .debtBorrow, .debtReceive:
             return tx.amount
-        case .expense:
+        case .expense, .debtLend, .debtRepay:
             return -tx.amount
         case .transfer:
             // Net across all accounts is zero; omit from total-balance series.
