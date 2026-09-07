@@ -24,6 +24,10 @@ struct BankImportView: View {
         drafts.filter(\.isSelected).count
     }
 
+    private var otherAccounts: [Account] {
+        accounts.filter { $0.id != selectedAccountID }
+    }
+
     var body: some View {
         Group {
             if accounts.isEmpty {
@@ -46,7 +50,7 @@ struct BankImportView: View {
                             Label("Выбрать выписку", systemImage: "doc.badge.arrow.up")
                         }
                     } footer: {
-                        Text("CSV или Excel (XLSX) из Kaspi, Halyk, Forte, Jusan и других банков.")
+                        Text("CSV, Excel (XLSX), PDF с текстом или HTML-таблица (.xls от банка). Kaspi, Halyk, Forte, Jusan и другие. Бинарный старый .xls — сохраните как CSV/XLSX.")
                     }
 
                     if isParsing {
@@ -100,7 +104,7 @@ struct BankImportView: View {
                 Button("Импорт") {
                     importSelected()
                 }
-                .disabled(selectedCount == 0 || isImporting || selectedAccount == nil)
+                .disabled(selectedCount == 0 || isImporting || selectedAccount == nil || hasInvalidTransfers)
             }
         }
         .fileImporter(
@@ -134,7 +138,16 @@ struct BankImportView: View {
         }
         .onAppear(perform: reload)
         .onChange(of: container.refreshToken) { _, _ in reload() }
-        .onChange(of: selectedAccountID) { _, _ in refreshDuplicates() }
+        .onChange(of: selectedAccountID) { _, _ in
+            clearInvalidTransferTargets()
+            refreshDuplicates()
+        }
+    }
+
+    private var hasInvalidTransfers: Bool {
+        drafts.contains {
+            $0.isSelected && !$0.isDuplicate && $0.type == .transfer && $0.toAccountID == nil
+        }
     }
 
     private func draftRow(_ draft: Binding<ImportDraft>) -> some View {
@@ -163,25 +176,44 @@ struct BankImportView: View {
                 Menu {
                     Button("Расход") { setType(draft, .expense) }
                     Button("Доход") { setType(draft, .income) }
+                    Button("Перевод") { setType(draft, .transfer) }
                 } label: {
                     Text(item.type.title)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(item.type == .income ? Color.green : Color.red.opacity(0.85))
+                        .foregroundStyle(typeColor(item.type))
                 }
-                Menu {
-                    Button("Без категории") { draft.categoryID.wrappedValue = nil }
-                    ForEach(categories(for: item.type), id: \.id) { category in
-                        Button(category.displayName) {
-                            draft.categoryID.wrappedValue = category.id
+
+                if item.type == .transfer {
+                    Menu {
+                        ForEach(otherAccounts, id: \.id) { account in
+                            Button(account.name) {
+                                draft.toAccountID.wrappedValue = account.id
+                            }
                         }
+                    } label: {
+                        Label(
+                            toAccountTitle(item),
+                            systemImage: "arrow.left.arrow.right"
+                        )
+                        .font(.caption)
                     }
-                } label: {
-                    Label(
-                        categoryTitle(item),
-                        systemImage: "tag"
-                    )
-                    .font(.caption)
+                } else {
+                    Menu {
+                        Button("Без категории") { draft.categoryID.wrappedValue = nil }
+                        ForEach(categories(for: item.type), id: \.id) { category in
+                            Button(category.displayName) {
+                                draft.categoryID.wrappedValue = category.id
+                            }
+                        }
+                    } label: {
+                        Label(
+                            categoryTitle(item),
+                            systemImage: "tag"
+                        )
+                        .font(.caption)
+                    }
                 }
+
                 if item.isDuplicate {
                     Text("уже есть")
                         .font(.caption2.weight(.semibold))
@@ -194,6 +226,14 @@ struct BankImportView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private func typeColor(_ type: TransactionType) -> Color {
+        switch type {
+        case .income: return .green
+        case .expense: return Color.red.opacity(0.85)
+        case .transfer: return .blue.opacity(0.9)
+        }
     }
 
     private func categories(for type: TransactionType) -> [Category] {
@@ -213,8 +253,24 @@ struct BankImportView: View {
         return "Категория"
     }
 
+    private func toAccountTitle(_ item: ImportDraft) -> String {
+        if let id = item.toAccountID,
+           let account = accounts.first(where: { $0.id == id }) {
+            return account.name
+        }
+        return "Куда"
+    }
+
     private func setType(_ draft: Binding<ImportDraft>, _ type: TransactionType) {
         draft.type.wrappedValue = type
+        if type == .transfer {
+            draft.categoryID.wrappedValue = nil
+            if draft.toAccountID.wrappedValue == nil {
+                draft.toAccountID.wrappedValue = otherAccounts.first?.id
+            }
+            return
+        }
+        draft.toAccountID.wrappedValue = nil
         if let id = draft.categoryID.wrappedValue,
            let category = categories.first(where: { $0.id == id }) {
             let needed: CategoryType = type == .income ? .income : .expense
@@ -232,12 +288,24 @@ struct BankImportView: View {
         }
     }
 
+    private func clearInvalidTransferTargets() {
+        for index in drafts.indices where drafts[index].type == .transfer {
+            if drafts[index].toAccountID == selectedAccountID {
+                drafts[index].toAccountID = otherAccounts.first?.id
+            }
+            if drafts[index].toAccountID == nil {
+                drafts[index].toAccountID = otherAccounts.first?.id
+            }
+        }
+    }
+
     private func reload() {
         accounts = (try? container.accounts.fetchAll()) ?? []
         categories = (try? container.categories.fetchAll()) ?? []
         if selectedAccountID == nil {
             selectedAccountID = accounts.first?.id
         }
+        clearInvalidTransferTargets()
         refreshDuplicates()
     }
 
@@ -285,6 +353,7 @@ struct BankImportView: View {
                 let filename = url.lastPathComponent
                 let parsed = try BankStatementParser.parse(data: data, filename: filename)
                 let cats = categories
+                let defaultTo = otherAccounts.first?.id
                 let mapped = parsed.rows.map { row in
                     let category = BankStatementParser.matchCategory(
                         note: row.note,
@@ -295,9 +364,10 @@ struct BankImportView: View {
                     return ImportDraft(
                         date: row.date,
                         amount: row.amount,
-                        type: row.type == .transfer ? .expense : row.type,
+                        type: row.type,
                         note: row.note,
-                        categoryID: category?.id,
+                        categoryID: row.type == .transfer ? nil : category?.id,
+                        toAccountID: row.type == .transfer ? defaultTo : nil,
                         tags: row.tags,
                         isSelected: true,
                         isDuplicate: false
@@ -315,6 +385,10 @@ struct BankImportView: View {
 
     private func importSelected() {
         guard let account = selectedAccount else { return }
+        if hasInvalidTransfers {
+            parseError = "Для переводов выберите счёт назначения. Нужен хотя бы ещё один счёт."
+            return
+        }
         isImporting = true
         var imported = 0
         var skipped = 0
@@ -323,7 +397,12 @@ struct BankImportView: View {
                 skipped += 1
                 continue
             }
-            let category = draft.categoryID.flatMap { id in categories.first(where: { $0.id == id }) }
+            let category = draft.type == .transfer
+                ? nil
+                : draft.categoryID.flatMap { id in categories.first(where: { $0.id == id }) }
+            let toAccount = draft.type == .transfer
+                ? draft.toAccountID.flatMap { id in accounts.first(where: { $0.id == id }) }
+                : nil
             var tags = draft.tags
             if let sourceName, !tags.contains(where: { $0.caseInsensitiveCompare(sourceName) == .orderedSame }) {
                 tags.append(sourceName)
@@ -335,6 +414,7 @@ struct BankImportView: View {
                 note: draft.note,
                 tagsCSV: tags.joined(separator: ","),
                 account: account,
+                toAccount: toAccount,
                 category: category
             )
             do {
@@ -356,7 +436,7 @@ struct BankImportView: View {
     }
 
     private static var allowedTypes: [UTType] {
-        var types: [UTType] = [.commaSeparatedText, .tabSeparatedText, .plainText]
+        var types: [UTType] = [.commaSeparatedText, .tabSeparatedText, .plainText, .pdf, .html]
         if let xlsx = UTType(filenameExtension: "xlsx") { types.append(xlsx) }
         if let csv = UTType(filenameExtension: "csv") { types.append(csv) }
         if let xls = UTType(filenameExtension: "xls") { types.append(xls) }
@@ -373,6 +453,7 @@ private struct ImportDraft: Identifiable {
     var type: TransactionType
     var note: String
     var categoryID: UUID?
+    var toAccountID: UUID?
     var tags: [String]
     var isSelected: Bool
     var isDuplicate: Bool

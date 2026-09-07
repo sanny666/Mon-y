@@ -1,5 +1,6 @@
 import Compression
 import Foundation
+import PDFKit
 
 struct BankStatementRow: Sendable, Equatable {
     var date: Date
@@ -21,19 +22,22 @@ enum BankImportError: LocalizedError {
     case noTransactions
     case unsupportedExcel
     case invalidFile
+    case unscannablePDF
 
     var errorDescription: String? {
         switch self {
         case .emptyFile:
             return "Файл пустой."
         case .unreadable:
-            return "Не удалось прочитать файл. Сохраните выписку как CSV или XLSX."
+            return "Не удалось прочитать файл. Сохраните выписку как CSV, XLSX или PDF с текстом."
         case .noTransactions:
             return "В файле нет операций. Проверьте, что это выписка, а не чек."
         case .unsupportedExcel:
-            return "Старый формат Excel (.xls) не поддерживается. Сохраните выписку как CSV или XLSX."
+            return "Бинарный Excel (.xls) не поддерживается. Откройте файл в Numbers/Excel и сохраните как CSV или XLSX. HTML-таблицы с расширением .xls уже читаются."
         case .invalidFile:
             return "Не получилось разобрать выписку."
+        case .unscannablePDF:
+            return "В PDF нет распознаваемого текста. Сохраните выписку как CSV/XLSX или экспортируйте текстовый PDF."
         }
     }
 }
@@ -42,13 +46,15 @@ enum BankStatementParser {
     static func parse(data: Data, filename: String) throws -> BankStatementParseResult {
         guard !data.isEmpty else { throw BankImportError.emptyFile }
 
-        if isOLECompound(data) {
-            throw BankImportError.unsupportedExcel
-        }
-
         let table: [[String]]
-        if isZIP(data) {
+        if isPDF(data) {
+            table = try PDFTable.read(data)
+        } else if isOLECompound(data) {
+            throw BankImportError.unsupportedExcel
+        } else if isZIP(data) {
             table = try XLSXTable.read(data)
+        } else if looksLikeHTML(data) {
+            table = try HTMLTable.read(data)
         } else {
             table = try CSVTable.read(data)
         }
@@ -68,7 +74,7 @@ enum BankStatementParser {
         let pool = categories.filter { !$0.isDeleted && $0.type == needed }
         guard type != .transfer, !pool.isEmpty else { return nil }
 
-        let haystack = (note + " " + hint).lowercased()
+        let haystack = normalizeMatchText(note + " " + hint)
 
         if let hinted = matchByName(hint, in: pool) {
             return hinted
@@ -77,18 +83,38 @@ enum BankStatementParser {
             return named
         }
 
+        // Prefer delivery when food markers appear with Yandex/Go.
+        if needed == .expense,
+           haystack.contains("яндекс") || haystack.contains("yandex"),
+           foodDeliveryMarkers.contains(where: { haystack.contains($0) }),
+           let delivery = pool.first(where: { $0.name.caseInsensitiveCompare("Доставка") == .orderedSame }) {
+            return delivery
+        }
+
         var best: (category: Category, score: Int)?
         for rule in keywordRules where rule.type == needed {
             guard containsToken(haystack, rule.keyword) else { continue }
             guard let category = pool.first(where: { $0.name.caseInsensitiveCompare(rule.categoryName) == .orderedSame })
                     ?? pool.first(where: { $0.displayName.localizedCaseInsensitiveContains(rule.categoryName) })
             else { continue }
-            let score = rule.keyword.count + (category.isSubcategory ? 8 : 0)
+            let score = rule.keyword.count * 2 + rule.bonus + (category.isSubcategory ? 8 : 0)
             if best == nil || score > best!.score {
                 best = (category, score)
             }
         }
         return best?.category
+    }
+
+    private static let foodDeliveryMarkers = [
+        "еда", "eda", "eats", "food", "доставк", "lavka", "лавк"
+    ]
+
+    private static func normalizeMatchText(_ text: String) -> String {
+        text.lowercased()
+            .replacingOccurrences(of: "ё", with: "е")
+            .replacingOccurrences(of: "[*._/\\\\|+]+", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func fingerprint(date: Date, amount: Double, note: String) -> String {
@@ -275,8 +301,15 @@ enum BankStatementParser {
         usesSignedConvention: Bool
     ) -> TransactionType {
         let text = (typeText + " " + note).lowercased()
-        if text.contains("перевод") && (text.contains("между") || text.contains("свой") || text.contains("transfer")) {
+        if text.contains("перевод") && (text.contains("между") || text.contains("свой") || text.contains("transfer")
+            || text.contains("own") || text.contains("внутренн")) {
             return .transfer
+        }
+        if text.contains("p2p") || text.contains("peer to peer") {
+            // P2P to other people stays expense/income by sign; own-account wording is transfer above.
+            if text.contains("свой") || text.contains("между счёт") || text.contains("между счет") {
+                return .transfer
+            }
         }
         switch typeText.trimmingCharacters(in: .whitespacesAndNewlines) {
         case "Доход", "Income": return .income
@@ -286,11 +319,11 @@ enum BankStatementParser {
         }
         if text.contains("пополнен") || text.contains("зачислен") || text.contains("входящ")
             || text.contains("зарплат") || text.contains("кэшбэк") || text.contains("cashback")
-            || text.contains("возврат") || text.contains("refund") {
+            || text.contains("возврат") || text.contains("refund") || text.contains("начислен") {
             return .income
         }
         if text.contains("покупк") || text.contains("оплат") || text.contains("списан")
-            || text.contains("комисс") || text.contains("вывод") {
+            || text.contains("комисс") || text.contains("вывод") || text.contains("kaspi qr") {
             return .expense
         }
         if usesSignedConvention {
@@ -300,12 +333,7 @@ enum BankStatementParser {
     }
 
     private static func isSummary(_ text: String) -> Bool {
-        let value = text.lowercased()
-        return value.hasPrefix("итог")
-            || value.hasPrefix("всего")
-            || value.contains("остаток")
-            || value.contains("баланс на")
-            || value == "баланс"
+        statementSummary(text)
     }
 
     private static func normalizeHeader(_ raw: String) -> String {
@@ -444,13 +472,35 @@ private enum DateParse {
             "dd/MM/yyyy HH:mm",
             "dd/MM/yyyy",
             "dd-MM-yyyy HH:mm",
-            "dd-MM-yyyy"
+            "dd-MM-yyyy",
+            // Two-digit year (KZ bank exports)
+            "dd.MM.yy HH:mm",
+            "dd.MM.yy HH:mm:ss",
+            "dd.MM.yy",
+            "d.M.yy HH:mm",
+            "d.M.yy",
+            "dd/MM/yy HH:mm",
+            "dd/MM/yy",
+            "dd-MM-yy HH:mm",
+            "dd-MM-yy",
+            "yy-MM-dd HH:mm",
+            "yy-MM-dd",
+            // US-style when day > 12 is unambiguous via formatter left-to-right after EU formats
+            "MM/dd/yyyy HH:mm",
+            "MM/dd/yyyy",
+            "M/d/yyyy HH:mm",
+            "M/d/yyyy",
+            "MM/dd/yy",
+            "M/d/yy"
         ]
         return formats.map { format in
             let formatter = DateFormatter()
             formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.timeZone = .current
             formatter.dateFormat = format
+            // Map 00–69 → 2000–2069, 70–99 → 1970–1999 for two-digit years.
+            formatter.twoDigitStartDate = Calendar(identifier: .gregorian)
+                .date(from: DateComponents(year: 2000, month: 1, day: 1))
             return formatter
         }
     }()
@@ -555,6 +605,14 @@ private struct KeywordRule {
     let keyword: String
     let categoryName: String
     let type: CategoryType
+    let bonus: Int
+
+    init(keyword: String, categoryName: String, type: CategoryType, bonus: Int = 0) {
+        self.keyword = keyword
+        self.categoryName = categoryName
+        self.type = type
+        self.bonus = bonus
+    }
 }
 
 private let keywordRules: [KeywordRule] = [
@@ -563,13 +621,22 @@ private let keywordRules: [KeywordRule] = [
     .init(keyword: "ramstore", categoryName: "Супермаркет", type: .expense),
     .init(keyword: "galmart", categoryName: "Супермаркет", type: .expense),
     .init(keyword: "monopole", categoryName: "Супермаркет", type: .expense),
+    .init(keyword: "airba", categoryName: "Супермаркет", type: .expense),
     .init(keyword: "супермаркет", categoryName: "Супермаркет", type: .expense),
     .init(keyword: "продукты", categoryName: "Продукты", type: .expense),
-    .init(keyword: "glovo", categoryName: "Доставка", type: .expense),
-    .init(keyword: "wolt", categoryName: "Доставка", type: .expense),
-    .init(keyword: "яндекс еда", categoryName: "Доставка", type: .expense),
-    .init(keyword: "yandex eats", categoryName: "Доставка", type: .expense),
-    .init(keyword: "indrive", categoryName: "Такси", type: .expense),
+    .init(keyword: "glovo", categoryName: "Доставка", type: .expense, bonus: 12),
+    .init(keyword: "wolt", categoryName: "Доставка", type: .expense, bonus: 12),
+    .init(keyword: "яндекс еда", categoryName: "Доставка", type: .expense, bonus: 40),
+    .init(keyword: "yandex eats", categoryName: "Доставка", type: .expense, bonus: 40),
+    .init(keyword: "yandex eda", categoryName: "Доставка", type: .expense, bonus: 40),
+    .init(keyword: "яндекс лавка", categoryName: "Доставка", type: .expense, bonus: 40),
+    .init(keyword: "yandex lavka", categoryName: "Доставка", type: .expense, bonus: 40),
+    .init(keyword: "indrive", categoryName: "Такси", type: .expense, bonus: 10),
+    .init(keyword: "in drive", categoryName: "Такси", type: .expense, bonus: 10),
+    .init(keyword: "яндекс го", categoryName: "Такси", type: .expense, bonus: 20),
+    .init(keyword: "yandex go", categoryName: "Такси", type: .expense, bonus: 20),
+    .init(keyword: "яндекс такси", categoryName: "Такси", type: .expense, bonus: 30),
+    .init(keyword: "yandex taxi", categoryName: "Такси", type: .expense, bonus: 30),
     .init(keyword: "яндекс", categoryName: "Такси", type: .expense),
     .init(keyword: "yandex", categoryName: "Такси", type: .expense),
     .init(keyword: "uber", categoryName: "Такси", type: .expense),
@@ -578,12 +645,14 @@ private let keywordRules: [KeywordRule] = [
     .init(keyword: "helio", categoryName: "Бензин", type: .expense),
     .init(keyword: "gazprom", categoryName: "Бензин", type: .expense),
     .init(keyword: "sinooil", categoryName: "Бензин", type: .expense),
+    .init(keyword: "qazaqoil", categoryName: "Бензин", type: .expense),
     .init(keyword: "бензин", categoryName: "Бензин", type: .expense),
     .init(keyword: "аи-95", categoryName: "Бензин", type: .expense),
     .init(keyword: "аи-92", categoryName: "Бензин", type: .expense),
     .init(keyword: "парков", categoryName: "Парковка", type: .expense),
     .init(keyword: "onay", categoryName: "Билет", type: .expense),
     .init(keyword: "starbucks", categoryName: "Кофейня", type: .expense),
+    .init(keyword: "coffeebooma", categoryName: "Кофейня", type: .expense),
     .init(keyword: "кофе", categoryName: "Кофейня", type: .expense),
     .init(keyword: "coffee", categoryName: "Кофейня", type: .expense),
     .init(keyword: "kfc", categoryName: "Фастфуд", type: .expense),
@@ -598,6 +667,7 @@ private let keywordRules: [KeywordRule] = [
     .init(keyword: "beeline", categoryName: "Интернет", type: .expense),
     .init(keyword: "tele2", categoryName: "Интернет", type: .expense),
     .init(keyword: "kcell", categoryName: "Интернет", type: .expense),
+    .init(keyword: "activ", categoryName: "Интернет", type: .expense),
     .init(keyword: "казахтелеком", categoryName: "Интернет", type: .expense),
     .init(keyword: "аренда", categoryName: "Аренда", type: .expense),
     .init(keyword: "netflix", categoryName: "Подписки", type: .expense),
@@ -616,6 +686,10 @@ private let keywordRules: [KeywordRule] = [
     .init(keyword: "world class", categoryName: "Спорт", type: .expense),
     .init(keyword: "клиника", categoryName: "Врач", type: .expense),
     .init(keyword: "стоматолог", categoryName: "Врач", type: .expense),
+    .init(keyword: "wildberries", categoryName: "Продукты", type: .expense),
+    .init(keyword: "wilberries", categoryName: "Продукты", type: .expense),
+    .init(keyword: "ozon", categoryName: "Продукты", type: .expense),
+    .init(keyword: "kaspi магазин", categoryName: "Продукты", type: .expense, bonus: 10),
     .init(keyword: "зарплат", categoryName: "Основная", type: .income),
     .init(keyword: "salary", categoryName: "Основная", type: .income),
     .init(keyword: "премия", categoryName: "Премия", type: .income),
@@ -713,6 +787,175 @@ private enum CSVTable {
         }
         fields.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
         return fields
+    }
+}
+
+// MARK: - HTML (banks often export .xls as HTML table)
+
+private enum HTMLTable {
+    static func read(_ data: Data) throws -> [[String]] {
+        let text: String
+        if let utf8 = String(data: data, encoding: .utf8), !utf8.contains("\u{FFFD}") {
+            text = utf8
+        } else if let cp1251 = String(data: data, encoding: .windowsCP1251) {
+            text = cp1251
+        } else {
+            throw BankImportError.unreadable
+        }
+
+        var rows: [[String]] = []
+        var currentRow: [String] = []
+        let pattern = #"(?is)<tr\b[^>]*>(.*?)</tr>"#
+        guard let rowRegex = try? NSRegularExpression(pattern: pattern) else {
+            throw BankImportError.invalidFile
+        }
+        let cellRegex = try? NSRegularExpression(pattern: #"(?is)<t[dh]\b[^>]*>(.*?)</t[dh]>"#)
+        let ns = text as NSString
+        let full = NSRange(location: 0, length: ns.length)
+
+        for match in rowRegex.matches(in: text, range: full) {
+            guard match.numberOfRanges > 1 else { continue }
+            let inner = ns.substring(with: match.range(at: 1))
+            currentRow = []
+            let innerNS = inner as NSString
+            let innerFull = NSRange(location: 0, length: innerNS.length)
+            for cell in cellRegex?.matches(in: inner, range: innerFull) ?? [] {
+                guard cell.numberOfRanges > 1 else { continue }
+                let raw = innerNS.substring(with: cell.range(at: 1))
+                let cleaned = decodeHTMLEntities(stripTags(raw))
+                    .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                currentRow.append(cleaned)
+            }
+            if !currentRow.isEmpty {
+                rows.append(currentRow)
+            }
+        }
+
+        if rows.isEmpty { throw BankImportError.noTransactions }
+        return rows
+    }
+
+    private static func stripTags(_ raw: String) -> String {
+        raw.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+    }
+
+    private static func decodeHTMLEntities(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "&nbsp;", with: " ", options: .caseInsensitive)
+            .replacingOccurrences(of: "&amp;", with: "&", options: .caseInsensitive)
+            .replacingOccurrences(of: "&lt;", with: "<", options: .caseInsensitive)
+            .replacingOccurrences(of: "&gt;", with: ">", options: .caseInsensitive)
+            .replacingOccurrences(of: "&quot;", with: "\"", options: .caseInsensitive)
+            .replacingOccurrences(of: "&#39;", with: "'")
+    }
+}
+
+// MARK: - PDF
+
+private enum PDFTable {
+    static func read(_ data: Data) throws -> [[String]] {
+        guard let document = PDFDocument(data: data) else {
+            throw BankImportError.invalidFile
+        }
+        var pages: [String] = []
+        for index in 0..<document.pageCount {
+            guard let page = document.page(at: index),
+                  let text = page.string?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !text.isEmpty
+            else { continue }
+            pages.append(text)
+        }
+        let blob = pages.joined(separator: "\n")
+        guard !blob.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw BankImportError.unscannablePDF
+        }
+
+        if let table = parseDelimited(blob), table.count >= 2 {
+            return table
+        }
+        return parseLooseLines(blob)
+    }
+
+    private static func parseDelimited(_ text: String) -> [[String]]? {
+        let lines = text
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard lines.count >= 2 else { return nil }
+
+        let candidates: [Character] = ["\t", ";", "|", ","]
+        for delimiter in candidates {
+            let rows = lines.map { splitKeepingEmpty($0, delimiter: delimiter) }
+            let widths = rows.map(\.count)
+            guard let maxWidth = widths.max(), maxWidth >= 3 else { continue }
+            let rich = widths.filter { $0 == maxWidth }.count
+            if rich >= max(2, lines.count / 3) {
+                return rows
+            }
+        }
+        return nil
+    }
+
+    private static func parseLooseLines(_ text: String) -> [[String]] {
+        // Synthetic header so ColumnMap / inferWithoutHeader can work.
+        var rows: [[String]] = [["Дата", "Сумма", "Описание"]]
+        let lines = text
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        let datePattern = try? NSRegularExpression(
+            pattern: #"(\d{1,2}[./-]\d{1,2}[./-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)"#
+        )
+        let amountPattern = try? NSRegularExpression(
+            pattern: #"([-+−–]?\(?\d{1,3}(?:[\s\u00A0\u202F]?\d{3})*(?:[.,]\d{1,2})?\)?)\s*(?:₸|тг|kzt|₽|rub)?"#,
+            options: .caseInsensitive
+        )
+
+        for line in lines {
+            let ns = line as NSString
+            let full = NSRange(location: 0, length: ns.length)
+            guard let datePattern,
+                  let amountPattern,
+                  let dateMatch = datePattern.firstMatch(in: line, range: full),
+                  dateMatch.numberOfRanges > 1
+            else { continue }
+
+            let dateText = ns.substring(with: dateMatch.range(at: 1))
+            guard parseDate(dateText, time: "") != nil else { continue }
+
+            var amountText: String?
+            let amountMatches = amountPattern.matches(in: line, range: full)
+            for match in amountMatches.reversed() {
+                guard match.numberOfRanges > 1 else { continue }
+                let candidate = ns.substring(with: match.range(at: 1))
+                // Skip if this span is inside the date.
+                if NSIntersectionRange(match.range(at: 1), dateMatch.range(at: 1)).length > 0 { continue }
+                if parseAmount(candidate) != nil {
+                    amountText = candidate
+                    break
+                }
+            }
+            guard let amountText else { continue }
+
+            var note = line
+            note = (note as NSString).replacingCharacters(in: dateMatch.range(at: 1), with: " ")
+            if let amountRange = note.range(of: amountText) {
+                note.removeSubrange(amountRange)
+            }
+            note = note
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if statementSummary(note) { continue }
+            rows.append([dateText, amountText, note])
+        }
+        return rows
+    }
+
+    private static func splitKeepingEmpty(_ line: String, delimiter: Character) -> [String] {
+        line.split(separator: delimiter, omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
     }
 }
 
@@ -982,6 +1225,32 @@ private enum MiniZip {
 
 private func isZIP(_ data: Data) -> Bool {
     data.count >= 4 && data[0] == 0x50 && data[1] == 0x4B && data[2] == 0x03 && data[3] == 0x04
+}
+
+private func isPDF(_ data: Data) -> Bool {
+    guard data.count >= 5 else { return false }
+    // %PDF-
+    return data[0] == 0x25 && data[1] == 0x50 && data[2] == 0x44 && data[3] == 0x46 && data[4] == 0x2D
+}
+
+private func looksLikeHTML(_ data: Data) -> Bool {
+    let sampleCount = min(data.count, 2048)
+    guard sampleCount > 0 else { return false }
+    let sample = data.prefix(sampleCount)
+    let text = String(data: sample, encoding: .utf8)
+        ?? String(data: sample, encoding: .windowsCP1251)
+        ?? ""
+    let lower = text.lowercased()
+    return lower.contains("<html") || lower.contains("<table") || lower.contains("<tr")
+}
+
+private func statementSummary(_ text: String) -> Bool {
+    let value = text.lowercased()
+    return value.hasPrefix("итог")
+        || value.hasPrefix("всего")
+        || value.contains("остаток")
+        || value.contains("баланс на")
+        || value == "баланс"
 }
 
 private func isOLECompound(_ data: Data) -> Bool {
