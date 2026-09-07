@@ -244,6 +244,36 @@ UUID в JSON — **string**. Связи — `*Id` поля, не вложенн�
 | `updatedAt` | string (ISO8601) | да |
 | `isDeleted` | boolean | да |
 
+### ItemDictionaryEntry
+
+Локальный словарь товаров/алиасов для голосового и OCR-распознавания категорий. **Статус iOS:** модель и SwiftData repo готовы (`isSynced` / `serverID`); sync на клиенте **не подключён** — контракт ниже для бэкенд-handoff.
+
+```json
+{
+  "id": "uuid",
+  "canonicalName": "кофе",
+  "aliases": ["coffee", "капучино", "латте"],
+  "categoryId": "uuid",
+  "usageCount": 3,
+  "lastUsedAt": "2026-08-26T07:41:00.000Z",
+  "updatedAt": "2026-08-26T07:41:00.000Z",
+  "isDeleted": false
+}
+```
+
+| Поле | Тип | Обязательно | Примечание |
+|------|-----|-------------|------------|
+| `id` | string (UUID) | да | |
+| `canonicalName` | string | да | normalized lowercase, trimmed |
+| `aliases` | string[] | да | может быть `[]`; не CSV в JSON |
+| `categoryId` | string (UUID) \| null | нет | FK → Category |
+| `usageCount` | integer | да | default `1`; для tie-break fuzzy-match |
+| `lastUsedAt` | string (ISO8601) | да | |
+| `updatedAt` | string (ISO8601) | да | |
+| `isDeleted` | boolean | да | |
+
+**Клиентский маппинг:** `aliasesCSV` (SwiftData) ↔ `aliases[]` (JSON).
+
 ### Transaction
 
 ```json
@@ -434,6 +464,20 @@ Query (опционально): `accountId`, `categoryId`, `startDate`, `endDate
 | PATCH | `/v1/recurring-transactions/:id` | partial | `200` |
 | DELETE | `/v1/recurring-transactions/:id` | — | `204` |
 
+### Item dictionary — `/v1/item-dictionary`
+
+| Method | Path | Body | Response |
+|--------|------|------|----------|
+| GET | `/v1/item-dictionary` | — | `200` `{ "items": [ItemDictionaryEntry] }` |
+| GET | `/v1/item-dictionary/:id` | — | `200` ItemDictionaryEntry |
+| POST | `/v1/item-dictionary` | ItemDictionaryEntry | `201` ItemDictionaryEntry (upsert by id) |
+| PATCH | `/v1/item-dictionary/:id` | partial | `200` ItemDictionaryEntry |
+| DELETE | `/v1/item-dictionary/:id` | — | `204` |
+
+Query (опционально): `?categoryId=<uuid>`, `?q=кофе` (prefix search по `canonicalName` / `aliases`).
+
+Cascade: soft-delete Category → `categoryId: null` на зависимых записях (или 422 — зафиксировать при реализации).
+
 Cascade на сервере: soft-delete Account/Category должен каскадно помечать зависимые записи `isDeleted=true` (или возвращать 422 при нарушении FK — зафиксировать при реализации). Soft-delete через `DELETE` HTTP = `isDeleted=true`, не физическое удаление.
 
 ---
@@ -468,6 +512,9 @@ Cascade на сервере: soft-delete Account/Category должен каск�
   },
   "recurringTransactions": {
     "changes": []
+  },
+  "itemDictionary": {
+    "changes": []
   }
 }
 ```
@@ -496,7 +543,8 @@ Cascade на сервере: soft-delete Account/Category должен каск�
   "transactions": { "changes": [] },
   "budgets": { "changes": [] },
   "goals": { "changes": [] },
-  "recurringTransactions": { "changes": [] }
+  "recurringTransactions": { "changes": [] },
+  "itemDictionary": { "changes": [] }
 }
 ```
 
@@ -511,7 +559,8 @@ Cascade на сервере: soft-delete Account/Category должен каск�
     "transactions": [],
     "budgets": [],
     "goals": [],
-    "recurringTransactions": []
+    "recurringTransactions": [],
+    "itemDictionary": []
   },
   "conflicts": [
     {
@@ -525,7 +574,7 @@ Cascade на сервере: soft-delete Account/Category должен каск�
 
 - Успешные changes → id в `accepted`; клиент ставит `isSynced = true`.
 - Конфликт по `updatedAt` → запись в `conflicts` (HTTP 200 для батча; одиночный CRUD может вернуть 409).
-- Порядок применения на сервере: categories → accounts → transactions / budgets / recurring → goals (FK).
+- Порядок применения на сервере: categories → accounts → itemDictionary → transactions / budgets / recurring → goals (FK).
 
 ### Retention tombstones
 
@@ -565,7 +614,7 @@ Cascade на сервере: soft-delete Account/Category должен каск�
 
 - [ ] `/v1/auth/register|login|refresh|logout` + JWT access 15m / refresh 30d
 - [ ] Bearer на всех non-auth маршрутах
-- [ ] CRUD × 6 сущностей; DELETE = soft-delete (`isDeleted=true`)
+- [ ] CRUD × 7 сущностей (включая item-dictionary); DELETE = soft-delete (`isDeleted=true`)
 - [ ] `isDeleted` во всех схемах; sync через `changes` (tombstones в потоке, без отдельного `deleted[]`)
 - [ ] Retention tombstones 30 дней (+ фоновая чистка)
 - [ ] `GET /v1/sync?since=` + `POST /v1/sync/push`
