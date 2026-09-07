@@ -34,6 +34,7 @@ struct TransactionEditorView: View {
     @State private var showVoiceCapture = false
     @State private var voiceDictionaryItemName: String?
     @State private var voiceMatchHint: String?
+    @State private var suppressTypeCategoryReset = false
 
     private var filteredRoots: [Category] {
         guard type != .transfer else { return [] }
@@ -150,6 +151,7 @@ struct TransactionEditorView: View {
             }
         }
         .onChange(of: type) { _, _ in
+            guard !suppressTypeCategoryReset else { return }
             selectedRootCategoryID = filteredRoots.first?.id
             selectedSubcategoryID = nil
             if type != .transfer {
@@ -434,6 +436,8 @@ struct TransactionEditorView: View {
     private func applyVoice(from text: String) async {
         do {
             let result = try container.parseVoiceTranscript(text)
+            suppressTypeCategoryReset = true
+
             type = result.type
             date = result.date
 
@@ -461,6 +465,10 @@ struct TransactionEditorView: View {
 
             if let categoryID = result.matchedCategoryID {
                 applyCategoryID(categoryID)
+            }
+
+            Task { @MainActor in
+                suppressTypeCategoryReset = false
             }
         } catch {
             errorMessage = error.localizedDescription

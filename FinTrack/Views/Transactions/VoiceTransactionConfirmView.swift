@@ -25,6 +25,7 @@ struct VoiceTransactionConfirmView: View {
     @State private var accounts: [Account] = []
     @State private var rootCategories: [Category] = []
     @State private var errorMessage: String?
+    @State private var suppressTypeCategoryReset = false
 
     private var filteredRoots: [Category] {
         guard type != .transfer else { return [] }
@@ -139,6 +140,7 @@ struct VoiceTransactionConfirmView: View {
             }
             .onAppear { load() }
             .onChange(of: type) { _, _ in
+                guard !suppressTypeCategoryReset else { return }
                 selectedRootCategoryID = filteredRoots.first?.id
                 selectedSubcategoryID = nil
                 if type != .transfer {
@@ -184,6 +186,8 @@ struct VoiceTransactionConfirmView: View {
             accounts = try container.accounts.fetchAll()
             rootCategories = try container.categories.fetchRoots()
 
+            suppressTypeCategoryReset = true
+
             type = parseResult.type
             date = parseResult.date
             note = parseResult.itemName
@@ -202,6 +206,10 @@ struct VoiceTransactionConfirmView: View {
 
             if let categoryID = parseResult.matchedCategoryID {
                 applyCategoryID(categoryID)
+            }
+
+            Task { @MainActor in
+                suppressTypeCategoryReset = false
             }
         } catch {
             errorMessage = error.localizedDescription

@@ -373,9 +373,29 @@ final class AppContainer {
             )
         )
 
-        if let match = try itemDictionary.findMatch(for: result.itemName) {
-            result.matchedCategoryID = match.category?.id
-            result.matchHint = "по совпадению с «\(match.canonicalName)»"
+        let allCategories = try categories.fetchAll().flatMap { [$0] + $0.children }
+        let searchTerms = TransactionParser.voiceSearchTerms(itemName: result.itemName, transcript: text)
+
+        for term in searchTerms {
+            if let match = try itemDictionary.findMatch(for: term),
+               let categoryID = match.category?.id {
+                result.matchedCategoryID = categoryID
+                result.matchHint = "по совпадению с «\(match.canonicalName)»"
+                return result
+            }
+        }
+
+        if let category = BankStatementParser.matchCategory(
+            note: result.itemName,
+            hint: text,
+            type: result.type,
+            categories: allCategories
+        ) {
+            result.matchedCategoryID = category.id
+            let hintTerm = result.itemName.isEmpty
+                ? (searchTerms.first(where: { $0.count >= 3 }) ?? category.name)
+                : result.itemName
+            result.matchHint = "по ключевому слову «\(hintTerm)»"
         }
 
         return result
@@ -391,12 +411,33 @@ final class AppContainer {
                     try categories.save(category)
                 }
                 UserDefaults.standard.set(true, forKey: AppStorageKeys.hasSeededSubcategories)
+                seedDefaultItemDictionaryIfNeeded()
                 notifyChange()
                 return
             }
             seedSubcategoriesIfNeeded()
+            seedDefaultItemDictionaryIfNeeded()
         } catch {
             // Ignore seed failures on first launch.
+        }
+    }
+
+    func seedDefaultItemDictionaryIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: AppStorageKeys.hasSeededItemDictionary) else { return }
+
+        do {
+            let allCategories = try categories.fetchAll().flatMap { [$0] + $0.children }
+            for seed in SeedDataService.defaultDictionary {
+                guard let category = SeedDataService.resolveCategory(named: seed.categoryName, in: allCategories) else {
+                    continue
+                }
+                try itemDictionary.insertSeed(name: seed.itemName, aliases: seed.aliases, category: category)
+            }
+
+            defaults.set(true, forKey: AppStorageKeys.hasSeededItemDictionary)
+        } catch {
+            // Retry next launch if seed fails.
         }
     }
 

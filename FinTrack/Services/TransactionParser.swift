@@ -331,4 +331,30 @@ enum TransactionParser {
     private static func collapseSpaces(_ text: String) -> String {
         VoiceStringMatching.normalizeItemName(text)
     }
+
+    /// Search terms for dictionary / category matching: item name first, then meaningful transcript tokens.
+    static func voiceSearchTerms(itemName: String, transcript: String) -> [String] {
+        var terms: [String] = []
+        var seen = Set<String>()
+
+        func append(_ raw: String) {
+            let normalized = VoiceStringMatching.normalizeItemName(raw)
+            guard !normalized.isEmpty, !seen.contains(normalized) else { return }
+            seen.insert(normalized)
+            terms.append(normalized)
+        }
+
+        append(itemName)
+
+        let normalized = VoiceStringMatching.normalizeItemName(transcript)
+        for token in normalized.split(separator: " ").map(String.init) {
+            let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            guard !VoiceParseLexicon.fillerWords.contains(trimmed) else { continue }
+            if Double(trimmed.replacingOccurrences(of: ",", with: ".")) != nil { continue }
+            append(trimmed)
+        }
+
+        return terms
+    }
 }

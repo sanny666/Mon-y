@@ -373,11 +373,40 @@ final class SwiftDataItemDictionaryRepository: ItemDictionaryRepository {
             existing.lastUsedAt = .now
             existing.updatedAt = .now
             existing.isSynced = false
+            appendAlias(normalized, to: existing)
             try context.save()
             return
         }
 
         let entry = ItemDictionaryEntry(canonicalName: normalized, category: category)
+        context.insert(entry)
+        entry.updatedAt = .now
+        entry.isSynced = false
+        try context.save()
+    }
+
+    private func appendAlias(_ normalized: String, to entry: ItemDictionaryEntry) {
+        guard normalized != entry.canonicalName else { return }
+        var aliases = entry.aliases
+        guard !aliases.contains(normalized) else { return }
+        aliases.append(normalized)
+        entry.aliases = aliases
+    }
+
+    func insertSeed(name: String, aliases: [String], category: Category) throws {
+        let normalized = VoiceStringMatching.normalizeItemName(name)
+        guard !normalized.isEmpty else { return }
+        guard try findMatch(for: normalized) == nil else { return }
+
+        let normalizedAliases = aliases
+            .map { VoiceStringMatching.normalizeItemName($0) }
+            .filter { !$0.isEmpty && $0 != normalized }
+
+        let entry = ItemDictionaryEntry(
+            canonicalName: normalized,
+            aliasesCSV: normalizedAliases.joined(separator: ","),
+            category: category
+        )
         context.insert(entry)
         entry.updatedAt = .now
         entry.isSynced = false

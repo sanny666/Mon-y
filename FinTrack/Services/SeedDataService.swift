@@ -131,4 +131,43 @@ enum SeedDataService {
     static func subcategorySeeds(forParentName name: String) -> [SubcategorySeed] {
         defaultTree.first(where: { $0.name == name })?.subcategories ?? []
     }
+
+    struct ItemDictionarySeed {
+        let itemName: String
+        let categoryName: String
+        let aliases: [String]
+    }
+
+    /// Cold-start mappings for voice / dictionary matching (subcategory or root name).
+    static let defaultDictionary: [ItemDictionarySeed] = [
+        .init(itemName: "кофе", categoryName: "Кофейня", aliases: ["coffee", "капучино", "латте"]),
+        .init(itemName: "такси", categoryName: "Такси", aliases: ["uber", "bolt", "indrive", "яндекс"]),
+        .init(itemName: "бензин", categoryName: "Бензин", aliases: ["заправка", "аи-92", "аи-95"]),
+        .init(itemName: "продукты", categoryName: "Супермаркет", aliases: ["молоко", "хлеб", "яйца", "мясо"]),
+        .init(itemName: "супермаркет", categoryName: "Супермаркет", aliases: ["magnum", "small", "магазин"]),
+        .init(itemName: "доставка", categoryName: "Доставка", aliases: ["glovo", "wolt", "яндекс еда"]),
+        .init(itemName: "ресторан", categoryName: "Ресторан", aliases: ["обед", "ужин"]),
+        .init(itemName: "фастфуд", categoryName: "Фастфуд", aliases: ["kfc", "burger", "mcdonald", "додо"]),
+        .init(itemName: "аптека", categoryName: "Аптека", aliases: ["лекарства", "таблетки"]),
+        .init(itemName: "врач", categoryName: "Врач", aliases: ["стоматолог", "клиника", "анализы"]),
+        .init(itemName: "спорт", categoryName: "Спорт", aliases: ["fitness", "фитнес", "абонемент"]),
+        .init(itemName: "кино", categoryName: "Кино", aliases: ["кинопарк", "chaplin", "фильм"]),
+        .init(itemName: "подписки", categoryName: "Подписки", aliases: ["netflix", "spotify", "youtube", "icloud"]),
+        .init(itemName: "игры", categoryName: "Игры", aliases: ["steam", "playstation"]),
+        .init(itemName: "аренда", categoryName: "Аренда", aliases: ["квартира", "жильё"]),
+        .init(itemName: "коммуналка", categoryName: "Коммуналка", aliases: ["кск", "алсеко", "электричество"]),
+        .init(itemName: "интернет", categoryName: "Интернет", aliases: ["beeline", "tele2", "kcell", "wifi"]),
+        .init(itemName: "парковка", categoryName: "Парковка", aliases: []),
+        .init(itemName: "билет", categoryName: "Билет", aliases: ["метро", "автобус", "onay"]),
+        .init(itemName: "зарплата", categoryName: "Основная", aliases: ["salary", "аванс"]),
+        .init(itemName: "премия", categoryName: "Премия", aliases: ["бонус"]),
+        .init(itemName: "фриланс", categoryName: "Фриланс", aliases: ["freelance", "подработка"]),
+        .init(itemName: "рынок", categoryName: "Рынок", aliases: ["базар", "овощи"]),
+        .init(itemName: "транспорт", categoryName: "Билет", aliases: ["проезд"]),
+        .init(itemName: "кафе", categoryName: "Кофейня", aliases: ["чай", "напиток"])
+    ]
+
+    static func resolveCategory(named name: String, in categories: [Category]) -> Category? {
+        categories.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame })
+    }
 }

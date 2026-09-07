@@ -10,6 +10,7 @@ enum AppStorageKeys {
     static let appAccentHex = "appAccentHex"
     static let faceIDEnabled = "faceIDEnabled"
     static let hasSeededSubcategories = "hasSeededSubcategories"
+    static let hasSeededItemDictionary = "hasSeededItemDictionary"
     static let hasLaunchedInThisInstall = "hasLaunchedInThisInstall"
     static let hideBalance = "hideBalance"
 }
