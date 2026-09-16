@@ -366,29 +366,41 @@ final class SwiftDataItemDictionaryRepository: ItemDictionaryRepository {
         return try context.fetch(descriptor)
     }
 
-    func findMatch(for name: String) throws -> ItemDictionaryEntry? {
+    func findExactMatch(for name: String) throws -> ItemDictionaryEntry? {
         let normalized = VoiceStringMatching.normalizeItemName(name)
         guard !normalized.isEmpty else { return nil }
 
         let entries = try fetchAll()
+        if let canonical = entries.first(where: { $0.canonicalName == normalized }) {
+            return canonical
+        }
+        return entries.first { $0.aliases.contains(normalized) }
+    }
 
-        for entry in entries {
-            if entry.canonicalName == normalized || entry.aliases.contains(normalized) {
-                return entry
-            }
+    func findMatch(for name: String) throws -> ItemDictionaryEntry? {
+        let normalized = VoiceStringMatching.normalizeItemName(name)
+        guard !normalized.isEmpty else { return nil }
+
+        if let exact = try findExactMatch(for: normalized) {
+            return exact
         }
 
         let stemmed = VoiceStringMatching.stem(normalized)
+        guard stemmed.count >= 4 else { return nil }
+
+        let entries = try fetchAll()
         var best: (entry: ItemDictionaryEntry, distance: Int)?
 
         for entry in entries {
             let candidates = [entry.canonicalName] + entry.aliases
             for candidate in candidates {
+                guard candidate.count >= 4 else { continue }
                 let candidateStem = VoiceStringMatching.stem(candidate)
+                guard candidateStem.count >= 4 else { continue }
                 let distance = VoiceStringMatching.levenshteinDistance(stemmed, candidateStem)
                 let maxLength = max(stemmed.count, candidateStem.count)
-                let threshold = max(2, Int(Double(maxLength) * 0.3))
-                guard distance <= threshold else { continue }
+                let threshold = maxLength <= 5 ? 1 : max(1, Int(Double(maxLength) * 0.25))
+                guard distance > 0, distance <= threshold else { continue }
 
                 if let current = best {
                     if distance < current.distance
@@ -405,43 +417,80 @@ final class SwiftDataItemDictionaryRepository: ItemDictionaryRepository {
     }
 
     func upsert(name: String, category: Category) throws {
+        try applyLearning(name: name, category: category, bumpUsage: true)
+    }
+
+    func learn(name: String, category: Category) throws {
+        try applyLearning(name: name, category: category, bumpUsage: false)
+    }
+
+    private func applyLearning(name: String, category: Category, bumpUsage: Bool) throws {
         let normalized = VoiceStringMatching.normalizeItemName(name)
         guard !normalized.isEmpty else { return }
 
-        if let existing = try findMatch(for: normalized) {
+        let entries = try fetchAll()
+        if let existing = entries.first(where: { $0.canonicalName == normalized }) {
+            let categoryChanged = existing.category?.id != category.id
             existing.category = category
-            existing.usageCount += 1
-            existing.lastUsedAt = .now
+            if bumpUsage {
+                existing.usageCount += 1
+                existing.lastUsedAt = .now
+            }
+            guard categoryChanged || bumpUsage else { return }
             existing.updatedAt = .now
             existing.isSynced = false
-            appendAlias(normalized, to: existing)
             try context.save()
             return
+        }
+
+        for entry in entries where entry.aliases.contains(normalized) {
+            var aliases = entry.aliases
+            aliases.removeAll { $0 == normalized }
+            entry.aliases = aliases
+            entry.updatedAt = .now
+            entry.isSynced = false
         }
 
         let entry = ItemDictionaryEntry(canonicalName: normalized, category: category)
         context.insert(entry)
         entry.updatedAt = .now
         entry.isSynced = false
+        if bumpUsage {
+            entry.usageCount = 1
+            entry.lastUsedAt = .now
+        }
         try context.save()
-    }
-
-    private func appendAlias(_ normalized: String, to entry: ItemDictionaryEntry) {
-        guard normalized != entry.canonicalName else { return }
-        var aliases = entry.aliases
-        guard !aliases.contains(normalized) else { return }
-        aliases.append(normalized)
-        entry.aliases = aliases
     }
 
     func insertSeed(name: String, aliases: [String], category: Category) throws {
         let normalized = VoiceStringMatching.normalizeItemName(name)
         guard !normalized.isEmpty else { return }
-        guard try findMatch(for: normalized) == nil else { return }
 
+        let entries = try fetchAll()
+        let takenNames = Set(entries.map(\.canonicalName))
         let normalizedAliases = aliases
             .map { VoiceStringMatching.normalizeItemName($0) }
-            .filter { !$0.isEmpty && $0 != normalized }
+            .filter { !$0.isEmpty && $0 != normalized && !takenNames.contains($0) }
+
+        if let existing = entries.first(where: { $0.canonicalName == normalized }) {
+            var changed = false
+            if existing.category == nil {
+                existing.category = category
+                changed = true
+            }
+            var merged = existing.aliases
+            for alias in normalizedAliases where !merged.contains(alias) && !takenNames.contains(alias) {
+                merged.append(alias)
+                changed = true
+            }
+            if changed {
+                existing.aliases = merged
+                existing.updatedAt = .now
+                existing.isSynced = false
+                try context.save()
+            }
+            return
+        }
 
         let entry = ItemDictionaryEntry(
             canonicalName: normalized,

@@ -209,6 +209,8 @@ struct RootView: View {
     private func rootContent(_ container: AppContainer) -> some View {
         let loggedIn = container.isLoggedIn
         let needsPIN = !lockController.hasPIN
+        let hasLocalAccounts = ((try? container.accounts.fetchAll()) ?? [])
+            .contains { !$0.isDeleted }
 
         if loggedIn && hasCompletedOnboarding && needsPIN {
             // Migration: older installs without PIN must set one before using the app.
@@ -219,8 +221,19 @@ struct RootView: View {
         } else if loggedIn && hasCompletedOnboarding {
             MainTabView()
         } else if loggedIn && !hasCompletedOnboarding {
-            OnboardingView(entryMode: .setupOnly) {
-                hasCompletedOnboarding = true
+            // Registration / interrupted setup only — never after login to an existing account.
+            if !hasLocalAccounts || container.needsAccountSetup {
+                OnboardingView(entryMode: .setupOnly) {
+                    hasCompletedOnboarding = true
+                }
+            } else if needsPIN {
+                OnboardingView(entryMode: .pinOnly) {
+                    hasCompletedOnboarding = true
+                    lockController.unlockWithoutAuth()
+                }
+            } else {
+                MainTabView()
+                    .task { hasCompletedOnboarding = true }
             }
         } else if !loggedIn && hasCompletedOnboarding {
             OnboardingView(entryMode: .authOnly) {

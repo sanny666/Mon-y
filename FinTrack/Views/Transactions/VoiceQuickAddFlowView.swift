@@ -1,13 +1,13 @@
 import SwiftUI
 
-/// Action Button / deep-link flow: capture → confirm inside one fullScreenCover.
+/// Action Button / deep-link flow: capture → batch confirm inside one fullScreenCover.
 struct VoiceQuickAddFlowView: View {
     @Environment(AppContainer.self) private var container
     @Environment(\.dismiss) private var dismiss
 
     private enum Step {
         case capture
-        case confirm(transcript: String, parseResult: VoiceParseResult)
+        case confirm(transcript: String, results: [VoiceParseResult])
     }
 
     @State private var step: Step = .capture
@@ -22,11 +22,8 @@ struct VoiceQuickAddFlowView: View {
                     onCancel: { dismiss() },
                     onComplete: handleTranscript
                 )
-            case .confirm(let transcript, let parseResult):
-                VoiceTransactionConfirmView(
-                    transcript: transcript,
-                    parseResult: parseResult
-                )
+            case .confirm(let transcript, let results):
+                VoiceBatchConfirmView(transcript: transcript, results: results)
             }
         }
         .alert("Ошибка", isPresented: Binding(
@@ -43,8 +40,8 @@ struct VoiceQuickAddFlowView: View {
 
     private func handleTranscript(_ text: String) {
         do {
-            let result = try container.parseVoiceTranscript(text)
-            step = .confirm(transcript: text, parseResult: result)
+            let results = try container.parseVoiceTranscripts(text)
+            step = .confirm(transcript: text, results: results)
         } catch {
             errorMessage = error.localizedDescription
         }

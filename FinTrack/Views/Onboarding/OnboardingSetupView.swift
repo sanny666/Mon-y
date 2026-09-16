@@ -95,19 +95,32 @@ struct OnboardingSetupView: View {
         isSaving = true
         defer { isSaving = false }
 
-        defaultCurrency = selectedCurrency.rawValue
-        let balance = Double(initialBalance.replacingOccurrences(of: ",", with: ".")) ?? 0
-        let account = Account(
-            name: accountName.trimmingCharacters(in: .whitespacesAndNewlines),
-            type: accountType,
-            currency: selectedCurrency.rawValue,
-            initialBalance: balance,
-            icon: accountType.systemImage + ".fill",
-            colorHex: accentColor.toHexRGB() ?? AppAccent.defaultHex
-        )
         do {
+            let existing = try container.accounts.fetchAll().filter { !$0.isDeleted }
+            if !existing.isEmpty {
+                // Cloud restore already brought accounts — don't create another.
+                if let currency = existing.first?.currency, !currency.isEmpty {
+                    defaultCurrency = currency
+                }
+                container.markAccountSetupFinished()
+                container.notifyChange()
+                onComplete()
+                return
+            }
+
+            defaultCurrency = selectedCurrency.rawValue
+            let balance = Double(initialBalance.replacingOccurrences(of: ",", with: ".")) ?? 0
+            let account = Account(
+                name: accountName.trimmingCharacters(in: .whitespacesAndNewlines),
+                type: accountType,
+                currency: selectedCurrency.rawValue,
+                initialBalance: balance,
+                icon: accountType.systemImage + ".fill",
+                colorHex: accentColor.toHexRGB() ?? AppAccent.defaultHex
+            )
             try container.accounts.save(account)
             container.seedDefaultCategoriesIfNeeded()
+            container.markAccountSetupFinished()
             container.notifyChange()
             onComplete()
         } catch {

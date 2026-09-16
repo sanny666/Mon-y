@@ -68,7 +68,9 @@ protocol RecurringTransactionRepository {
 
 protocol ItemDictionaryRepository {
     func fetchAll() throws -> [ItemDictionaryEntry]
+    func findExactMatch(for name: String) throws -> ItemDictionaryEntry?
     func findMatch(for name: String) throws -> ItemDictionaryEntry?
     func upsert(name: String, category: Category) throws
+    func learn(name: String, category: Category) throws
     func insertSeed(name: String, aliases: [String], category: Category) throws
 }

@@ -54,15 +54,22 @@ struct OnboardingView: View {
     private var root: some View {
         switch entryMode {
         case .full, .authOnly:
-            OnboardingAuthView {
+            OnboardingAuthView { isNewRegistration in
                 if entryMode == .authOnly {
                     if lockController.hasPIN {
                         onComplete()
                     } else {
                         path.append(Phase.pin)
                     }
-                } else {
+                } else if isNewRegistration {
                     path.append(Phase.setup)
+                } else {
+                    // Login into existing account: setup is skipped in AppContainer.login.
+                    if lockController.hasPIN {
+                        onComplete()
+                    } else {
+                        path.append(Phase.pin)
+                    }
                 }
             }
         case .setupOnly:

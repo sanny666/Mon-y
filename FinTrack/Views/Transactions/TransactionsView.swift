@@ -55,10 +55,7 @@ struct TransactionsView: View {
                 }
             }
             .sheet(item: $voiceDraft) { draft in
-                VoiceTransactionConfirmView(
-                    transcript: draft.transcript,
-                    parseResult: draft.parseResult
-                )
+                VoiceBatchConfirmView(draft: draft)
             }
             .alert("Голосовой ввод", isPresented: Binding(
                 get: { voiceErrorMessage != nil },
@@ -279,8 +276,11 @@ struct TransactionsView: View {
 
     private func handleVoiceTranscript(_ text: String) {
         do {
-            let result = try container.parseVoiceTranscript(text)
-            voiceDraft = VoiceTransactionDraft(transcript: text, parseResult: result)
+            let results = try container.parseVoiceTranscripts(text)
+            voiceDraft = VoiceTransactionDraft(
+                transcript: text,
+                items: results.map { VoiceDraftItem(parseResult: $0) }
+            )
         } catch {
             voiceErrorMessage = error.localizedDescription
         }

@@ -2,7 +2,8 @@ import SwiftUI
 
 struct OnboardingAuthView: View {
     @Environment(AppContainer.self) private var container
-    let onSuccess: () -> Void
+    /// `true` when the user just registered (needs first-account setup).
+    let onSuccess: (_ isNewRegistration: Bool) -> Void
 
     @State private var mode: AuthCredentialsForm.Mode = .register
     @State private var email = ""
@@ -87,6 +88,7 @@ struct OnboardingAuthView: View {
         defer { isLoading = false }
         do {
             let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            let isNewRegistration: Bool
             if mode == .register {
                 let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
                 try await container.register(
@@ -94,10 +96,12 @@ struct OnboardingAuthView: View {
                     password: password,
                     name: trimmedName.isEmpty ? nil : trimmedName
                 )
+                isNewRegistration = true
             } else {
                 try await container.login(email: trimmedEmail, password: password)
+                isNewRegistration = false
             }
-            onSuccess()
+            onSuccess(isNewRegistration)
         } catch {
             errorMessage = error.localizedDescription
         }

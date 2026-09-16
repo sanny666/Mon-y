@@ -47,6 +47,12 @@ final class AppContainer {
     private var periodicMaintenanceTask: Task<Void, Never>?
     /// After the first cloud sync attempt we may seed defaults if the account is empty.
     private var didAttemptInitialCloudRestore = false
+    /// True after registration until the user finishes first-account setup.
+    private(set) var needsAccountSetup = false
+
+    func markAccountSetupFinished() {
+        needsAccountSetup = false
+    }
 
     init(context: ModelContext) {
         self.context = context
@@ -213,7 +219,7 @@ final class AppContainer {
 
     // MARK: - Mode switching
 
-    func enableSyncedMode() {
+    func enableSyncedMode(triggerInitialSync: Bool = true) {
         let schedule: () -> Void = { [weak self] in
             self?.scheduleSyncDebounced()
         }
@@ -234,7 +240,9 @@ final class AppContainer {
         dataMode = .synced
         startPeriodicSync()
         startPeriodicMaintenance()
-        Task { await performSync() }
+        if triggerInitialSync {
+            Task { await performSync() }
+        }
     }
 
     func disableSyncedMode() {
@@ -260,9 +268,13 @@ final class AppContainer {
         try await authManager.login(email: email, password: password)
         needsReauthentication = false
         authBannerMessage = nil
+        needsAccountSetup = false
         // Force full pull so reinstall / new device restores cloud history.
         UserDefaults.standard.removeObject(forKey: "sync.lastServerTime")
-        enableSyncedMode()
+        enableSyncedMode(triggerInitialSync: false)
+        await performSync()
+        // Existing cloud account — never force first-account onboarding / local seeds.
+        UserDefaults.standard.set(true, forKey: AppStorageKeys.hasCompletedOnboarding)
         bumpSessionEpoch()
     }
 
@@ -270,8 +282,10 @@ final class AppContainer {
         try await authManager.register(email: email, password: password, name: name)
         needsReauthentication = false
         authBannerMessage = nil
+        needsAccountSetup = true
         UserDefaults.standard.removeObject(forKey: "sync.lastServerTime")
-        enableSyncedMode()
+        enableSyncedMode(triggerInitialSync: false)
+        await performSync()
         bumpSessionEpoch()
     }
 
@@ -280,6 +294,7 @@ final class AppContainer {
         disableSyncedMode()
         needsReauthentication = false
         authBannerMessage = nil
+        needsAccountSetup = false
         bumpSessionEpoch()
     }
 
@@ -395,21 +410,60 @@ final class AppContainer {
     // MARK: - Voice parsing
 
     func parseVoiceTranscript(_ text: String) throws -> VoiceParseResult {
+        let results = try parseVoiceTranscripts(text)
+        if let first = results.first {
+            return first
+        }
         let accounts = try accounts.fetchAll()
         let defaultID = DefaultAccountResolver.resolvedID(from: accounts)
-        var result = TransactionParser.parse(
+        return TransactionParser.parse(
             VoiceParseInput(
                 text: text,
                 accounts: accounts,
                 defaultAccountID: defaultID
             )
         )
+    }
 
-        let allCategories = try categories.fetchAll().flatMap { [$0] + $0.children }
-        let searchTerms = TransactionParser.voiceSearchTerms(itemName: result.itemName, transcript: text)
+    func parseVoiceTranscripts(_ text: String) throws -> [VoiceParseResult] {
+        let accounts = try accounts.fetchAll()
+        let defaultID = DefaultAccountResolver.resolvedID(from: accounts)
+        let input = VoiceParseInput(
+            text: text,
+            accounts: accounts,
+            defaultAccountID: defaultID
+        )
+        let parsed = TransactionParser.parseMultiple(input)
+        let allCategories = try categories.fetchAll()
+
+        return try parsed.map { result in
+            try enrichVoiceParseResult(result, transcript: text, categories: allCategories)
+        }
+    }
+
+    private func enrichVoiceParseResult(
+        _ result: VoiceParseResult,
+        transcript: String,
+        categories allCategories: [Category]
+    ) throws -> VoiceParseResult {
+        var result = result
+        let searchTerms = TransactionParser.voiceSearchTerms(
+            itemName: result.itemName,
+            transcript: result.itemName.isEmpty ? transcript : result.itemName
+        )
+
+        if let hit = CategoryVoiceMatcher.match(
+            terms: searchTerms,
+            type: result.type,
+            categories: allCategories
+        ) {
+            result.matchedCategoryID = hit.category.id
+            result.matchHint = "по категории «\(hit.category.displayName)»"
+            return result
+        }
 
         for term in searchTerms {
-            if let match = try itemDictionary.findMatch(for: term),
+            if let match = try itemDictionary.findExactMatch(for: term),
                let categoryID = match.category?.id {
                 result.matchedCategoryID = categoryID
                 result.matchHint = "по совпадению с «\(match.canonicalName)»"
@@ -419,7 +473,7 @@ final class AppContainer {
 
         if let category = BankStatementParser.matchCategory(
             note: result.itemName,
-            hint: text,
+            hint: transcript,
             type: result.type,
             categories: allCategories
         ) {
@@ -428,6 +482,16 @@ final class AppContainer {
                 ? (searchTerms.first(where: { $0.count >= 3 }) ?? category.name)
                 : result.itemName
             result.matchHint = "по ключевому слову «\(hintTerm)»"
+            return result
+        }
+
+        for term in searchTerms where !term.contains(" ") && term.count >= 4 {
+            if let match = try itemDictionary.findMatch(for: term),
+               let categoryID = match.category?.id {
+                result.matchedCategoryID = categoryID
+                result.matchHint = "по совпадению с «\(match.canonicalName)»"
+                break
+            }
         }
 
         return result
@@ -453,7 +517,7 @@ final class AppContainer {
                 return
             }
             dedupeCategoriesIfNeeded()
-            seedSubcategoriesIfNeeded()
+            seedMissingDefaultCategoriesIfNeeded()
             seedDefaultItemDictionaryIfNeeded()
         } catch {
             // Ignore seed failures on first launch.
@@ -611,11 +675,23 @@ final class AppContainer {
     }
 
     func seedDefaultItemDictionaryIfNeeded() {
-        let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: AppStorageKeys.hasSeededItemDictionary) else { return }
-
         do {
-            let allCategories = try categories.fetchAll().flatMap { [$0] + $0.children }
+            let allCategories = try categories.fetchAll()
+            for category in allCategories where !category.isDeleted {
+                try itemDictionary.learn(name: category.name, category: category)
+            }
+
+            let history = try transactions.fetchAll()
+            for item in history {
+                guard !item.isDeleted, item.type != .transfer, let category = item.category, !item.note.isEmpty else {
+                    continue
+                }
+                let terms = TransactionParser.voiceSearchTerms(itemName: item.note, transcript: item.note)
+                for term in terms {
+                    try itemDictionary.learn(name: term, category: category)
+                }
+            }
+
             for seed in SeedDataService.defaultDictionary {
                 guard let category = SeedDataService.resolveCategory(named: seed.categoryName, in: allCategories) else {
                     continue
@@ -623,38 +699,67 @@ final class AppContainer {
                 try itemDictionary.insertSeed(name: seed.itemName, aliases: seed.aliases, category: category)
             }
 
-            defaults.set(true, forKey: AppStorageKeys.hasSeededItemDictionary)
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.hasSeededItemDictionary)
         } catch {
             // Retry next launch if seed fails.
         }
     }
 
-    private func seedSubcategoriesIfNeeded() {
-        let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: AppStorageKeys.hasSeededSubcategories) else { return }
-
+    /// Adds new default roots/subs without duplicating names the user already has.
+    private func seedMissingDefaultCategoriesIfNeeded() {
         do {
-            let roots = try categories.fetchRoots()
-            // Avoid attaching the same seed tree to every duplicate parent name.
-            var seenRootNames = Set<String>()
-            for root in roots {
-                let key = "\(root.typeRaw)|\(root.name.lowercased())"
-                guard seenRootNames.insert(key).inserted else { continue }
-                let existingNames = Set(root.children.filter { !$0.isDeleted }.map(\.name))
-                let seeds = SeedDataService.subcategorySeeds(forParentName: root.name)
-                for seed in seeds where !existingNames.contains(seed.name) {
-                    let child = Category(
-                        name: seed.name,
-                        icon: seed.icon,
-                        colorHex: root.colorHex,
-                        type: root.type,
-                        parent: root
-                    )
-                    try categories.save(child)
+            var all = try categories.fetchAll()
+            var changed = false
+
+            func match(name: String, type: CategoryType) -> Category? {
+                let keys = SeedDataService.equivalentCategoryNames(name)
+                return all.first {
+                    !$0.isDeleted && $0.type == type && keys.contains(normalizedCategoryName($0.name))
                 }
             }
-            defaults.set(true, forKey: AppStorageKeys.hasSeededSubcategories)
-            notifyChange()
+
+            for seed in SeedDataService.defaultTree {
+                let parent: Category
+                if let existingRoot = all.first(where: {
+                    $0.parent == nil
+                        && !$0.isDeleted
+                        && $0.type == seed.type
+                        && normalizedCategoryName($0.name) == normalizedCategoryName(seed.name)
+                }) {
+                    parent = existingRoot
+                } else if match(name: seed.name, type: seed.type) != nil {
+                    continue
+                } else {
+                    parent = Category(
+                        name: seed.name,
+                        icon: seed.icon,
+                        colorHex: seed.colorHex,
+                        type: seed.type
+                    )
+                    try categories.save(parent)
+                    all.append(parent)
+                    changed = true
+                }
+
+                for sub in seed.subcategories {
+                    guard match(name: sub.name, type: seed.type) == nil else { continue }
+                    let child = Category(
+                        name: sub.name,
+                        icon: sub.icon,
+                        colorHex: parent.colorHex,
+                        type: seed.type,
+                        parent: parent
+                    )
+                    try categories.save(child)
+                    all.append(child)
+                    changed = true
+                }
+            }
+
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.hasSeededSubcategories)
+            if changed {
+                notifyChange()
+            }
         } catch {
             // Retry next launch if upgrade fails.
         }

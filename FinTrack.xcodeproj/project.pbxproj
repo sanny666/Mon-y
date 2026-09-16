@@ -21,6 +21,7 @@
 		A9B8C7D6E5F4039281706152 /* VoiceWaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A8C7D6E5F4039281706153 /* VoiceWaveformView.swift */; };
 		C8D7E6F5A4B3029180765432 /* VoiceWaveformStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8E7F6A5B4C3029180765433 /* VoiceWaveformStore.swift */; };
 		E4F5A6B7C8D9012345678901 /* VoiceTransactionConfirmView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A6B7C8D9E0123456789012 /* VoiceTransactionConfirmView.swift */; };
+		E5A6B7C8D9E0123456789012 /* VoiceBatchConfirmView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E1234567890123 /* VoiceBatchConfirmView.swift */; };
 		D7F8A2B19C4E6D0A5B3E8127 /* ReceiptImagePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F9B3C24D5F7E1B6C4F9238 /* ReceiptImagePreview.swift */; };
 		136EA57DD3663359B01E239B /* AddTransactionIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D78FE93BDAC755F7DDDAA9EF /* AddTransactionIntent.swift */; };
 		1535203A29A86714A0FCC6EE /* Goal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E62913BEBCFC895969A623 /* Goal.swift */; };
@@ -188,6 +189,7 @@
 		B9A8C7D6E5F4039281706153 /* VoiceWaveformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceWaveformView.swift; sourceTree = "<group>"; };
 		D8E7F6A5B4C3029180765433 /* VoiceWaveformStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceWaveformStore.swift; sourceTree = "<group>"; };
 		F5A6B7C8D9E0123456789012 /* VoiceTransactionConfirmView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceTransactionConfirmView.swift; sourceTree = "<group>"; };
+		F6A7B8C9D0E1234567890123 /* VoiceBatchConfirmView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceBatchConfirmView.swift; sourceTree = "<group>"; };
 		E8F9B3C24D5F7E1B6C4F9238 /* ReceiptImagePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptImagePreview.swift; sourceTree = "<group>"; };
 		59F04F2C86DDAF6128F6FA0C /* AppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContainer.swift; sourceTree = "<group>"; };
 		5C270EE3458535D3E695B5C6 /* WidgetSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotStore.swift; sourceTree = "<group>"; };
@@ -548,6 +550,7 @@
 				F4A5B6C7D8E9012345678901 /* VoiceCaptureView.swift */,
 				B9A8C7D6E5F4039281706153 /* VoiceWaveformView.swift */,
 				F5A6B7C8D9E0123456789012 /* VoiceTransactionConfirmView.swift */,
+				F6A7B8C9D0E1234567890123 /* VoiceBatchConfirmView.swift */,
 				D4E5F60718293A4B5C6D7E8F /* VoiceQuickAddFlowView.swift */,
 				A7BCF7166DD04657EC3B3455 /* TransactionsView.swift */,
 			);
@@ -710,6 +713,7 @@
 				A9B8C7D6E5F4039281706152 /* VoiceWaveformView.swift in Sources */,
 				C8D7E6F5A4B3029180765432 /* VoiceWaveformStore.swift in Sources */,
 				E4F5A6B7C8D9012345678901 /* VoiceTransactionConfirmView.swift in Sources */,
+				E5A6B7C8D9E0123456789012 /* VoiceBatchConfirmView.swift in Sources */,
 				C3D4E5F60718293A4B5C6D7E /* VoiceQuickAddFlowView.swift in Sources */,
 				D7F8A2B19C4E6D0A5B3E8127 /* ReceiptImagePreview.swift in Sources */,
 				22A5E2670E4CC179C6F9EA07 /* CategoriesView.swift in Sources */,

@@ -75,6 +75,10 @@ enum BankStatementParser {
         guard type != .transfer, !pool.isEmpty else { return nil }
 
         let haystack = normalizeMatchText(note + " " + hint)
+        let terms = TransactionParser.voiceSearchTerms(itemName: note, transcript: hint.isEmpty ? note : note + " " + hint)
+        if let hit = CategoryVoiceMatcher.match(terms: terms, type: type, categories: pool) {
+            return hit.category
+        }
 
         if let hinted = matchByName(hint, in: pool) {
             return hinted
@@ -686,10 +690,24 @@ private let keywordRules: [KeywordRule] = [
     .init(keyword: "world class", categoryName: "Спорт", type: .expense),
     .init(keyword: "клиника", categoryName: "Врач", type: .expense),
     .init(keyword: "стоматолог", categoryName: "Врач", type: .expense),
-    .init(keyword: "wildberries", categoryName: "Продукты", type: .expense),
-    .init(keyword: "wilberries", categoryName: "Продукты", type: .expense),
-    .init(keyword: "ozon", categoryName: "Продукты", type: .expense),
-    .init(keyword: "kaspi магазин", categoryName: "Продукты", type: .expense, bonus: 10),
+    .init(keyword: "wildberries", categoryName: "Маркетплейс", type: .expense),
+    .init(keyword: "wilberries", categoryName: "Маркетплейс", type: .expense),
+    .init(keyword: "вайлдберриз", categoryName: "Маркетплейс", type: .expense),
+    .init(keyword: "ozon", categoryName: "Маркетплейс", type: .expense),
+    .init(keyword: "озон", categoryName: "Маркетплейс", type: .expense),
+    .init(keyword: "kaspi магазин", categoryName: "Маркетплейс", type: .expense, bonus: 10),
+    .init(keyword: "горилла", categoryName: "Энергетики", type: .expense, bonus: 30),
+    .init(keyword: "gorilla", categoryName: "Энергетики", type: .expense, bonus: 30),
+    .init(keyword: "энергос", categoryName: "Энергетики", type: .expense, bonus: 20),
+    .init(keyword: "энергетик", categoryName: "Энергетики", type: .expense, bonus: 20),
+    .init(keyword: "red bull", categoryName: "Энергетики", type: .expense, bonus: 25),
+    .init(keyword: "redbull", categoryName: "Энергетики", type: .expense, bonus: 25),
+    .init(keyword: "ред булл", categoryName: "Энергетики", type: .expense, bonus: 25),
+    .init(keyword: "monster energy", categoryName: "Энергетики", type: .expense, bonus: 20),
+    .init(keyword: "стики", categoryName: "Табак", type: .expense, bonus: 20),
+    .init(keyword: "iqos", categoryName: "Табак", type: .expense, bonus: 20),
+    .init(keyword: "heets", categoryName: "Табак", type: .expense, bonus: 15),
+    .init(keyword: "сигареты", categoryName: "Табак", type: .expense),
     .init(keyword: "зарплат", categoryName: "Основная", type: .income),
     .init(keyword: "salary", categoryName: "Основная", type: .income),
     .init(keyword: "премия", categoryName: "Премия", type: .income),

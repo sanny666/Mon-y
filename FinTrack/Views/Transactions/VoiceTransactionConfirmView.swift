@@ -1,17 +1,13 @@
 import SwiftUI
 
-struct VoiceTransactionDraft: Identifiable {
-    let id = UUID()
-    let transcript: String
-    let parseResult: VoiceParseResult
-}
-
 struct VoiceTransactionConfirmView: View {
     @Environment(AppContainer.self) private var container
     @Environment(\.dismiss) private var dismiss
 
     let transcript: String
     let parseResult: VoiceParseResult
+    /// When set, Save updates the draft instead of writing to the database.
+    var onApply: ((VoiceParseResult) -> Void)? = nil
 
     @State private var amountText = ""
     @State private var type: TransactionType = .expense
@@ -26,6 +22,8 @@ struct VoiceTransactionConfirmView: View {
     @State private var rootCategories: [Category] = []
     @State private var errorMessage: String?
     @State private var suppressTypeCategoryReset = false
+
+    private var isDraftMode: Bool { onApply != nil }
 
     private var filteredRoots: [Category] {
         guard type != .transfer else { return [] }
@@ -58,7 +56,7 @@ struct VoiceTransactionConfirmView: View {
         NavigationStack {
             Form {
                 Section { typePicker }
-                if !transcript.isEmpty {
+                if !isDraftMode, !transcript.isEmpty {
                     Section {
                         Text(transcript)
                             .font(.subheadline)
@@ -107,7 +105,8 @@ struct VoiceTransactionConfirmView: View {
                                 Text(category.name).tag(Optional(category.id))
                             }
                         }
-                        .onChange(of: selectedRootCategoryID) { _, _ in
+                        .onChange(of: selectedRootCategoryID) { oldValue, _ in
+                            guard oldValue != nil, !suppressTypeCategoryReset else { return }
                             selectedSubcategoryID = nil
                         }
 
@@ -137,7 +136,7 @@ struct VoiceTransactionConfirmView: View {
                 }
             }
             .appGroupedList()
-            .navigationTitle("Подтверждение")
+            .navigationTitle(isDraftMode ? "Редактирование" : "Подтверждение")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ModalCloseToolbarItem { dismiss() }
@@ -217,11 +216,20 @@ struct VoiceTransactionConfirmView: View {
                 selectedSubcategoryID = nil
                 return
             }
-            if let child = root.children.first(where: { $0.id == categoryID }) {
+            if let child = root.children.first(where: { $0.id == categoryID && !$0.isDeleted }) {
                 selectedRootCategoryID = root.id
                 selectedSubcategoryID = child.id
                 return
             }
+        }
+
+        guard let found = try? container.categories.fetch(id: categoryID) else { return }
+        if let parent = found.parent {
+            selectedRootCategoryID = parent.id
+            selectedSubcategoryID = found.id
+        } else {
+            selectedRootCategoryID = found.id
+            selectedSubcategoryID = nil
         }
     }
 
@@ -233,7 +241,31 @@ struct VoiceTransactionConfirmView: View {
         return selectedRoot
     }
 
+    private func makeUpdatedResult() -> VoiceParseResult {
+        let amount = Double(amountText.replacingOccurrences(of: ",", with: "."))
+        let itemName = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        let category = type == .transfer ? nil : resolvedCategory()
+
+        return VoiceParseResult(
+            type: type,
+            amount: amount,
+            date: date,
+            itemName: type == .transfer ? "" : itemName,
+            accountID: selectedAccountID,
+            toAccountID: type == .transfer ? selectedToAccountID : nil,
+            matchHint: categoryMatchHint,
+            matchedCategoryID: category?.id,
+            hasExplicitDate: true
+        )
+    }
+
     private func save() {
+        if let onApply {
+            onApply(makeUpdatedResult())
+            dismiss()
+            return
+        }
+
         let amount = Double(amountText.replacingOccurrences(of: ",", with: ".")) ?? 0
         guard let accountID = selectedAccountID,
               let account = accounts.first(where: { $0.id == accountID }) else { return }
