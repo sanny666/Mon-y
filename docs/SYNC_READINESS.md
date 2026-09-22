@@ -1,4 +1,4 @@
-# Sync Readiness — FinTrack
+# Sync Readiness — monёy
 
 Аудит локального MVP перед синхронизацией с собственным сервером.  
 Сетевой слой **не подключён** в DI. Реализация HTTP и офлайн-очереди — следующий шаг после бэкенда по [`API_CONTRACT.md`](API_CONTRACT.md).

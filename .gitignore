@@ -1,6 +1,11 @@
 .derivedData/
 DerivedData/
 build/
+dist/
+.cursor/
+*.ipa
+*.pdf
+AGENTS.md
 *.xcuserstate
 xcuserdata/
 .DS_Store

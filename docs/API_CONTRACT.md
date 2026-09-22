@@ -1,4 +1,4 @@
-# FinTrack API Contract
+# monёy API Contract
 
 Контракт REST API для бэкенда и клиента. Base path: **`/v1`**.  
 JSON: **camelCase**. Мультитенантность: все данные scoped по `userId` из JWT.

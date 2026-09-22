@@ -1,7 +1,7 @@
 # Sync edge-case test log
 
 Дата прогона: 2026-08-26  
-Клиент: FinTrack / Monëy (локальный workspace)  
+Клиент: monёy (локальный workspace)
 Сервер: `http://localhost:3020` (Cursor workspace Backend-money)  
 Контракт: [`API_CONTRACT.md`](API_CONTRACT.md)
 
