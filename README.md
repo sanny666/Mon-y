@@ -1,54 +1,64 @@
 # monёy
 
-Личный pet-проект финансового трекера для iPhone. Приложение помогает учитывать доходы и расходы, следить за бюджетами и быстро добавлять несколько операций голосом.
+A personal pet-project finance tracker for iPhone. Track income and expenses, stay on top of budgets, and add several transactions at once with voice.
 
-## Возможности
+## Features
 
-- счета, категории и подкатегории;
-- расходы, доходы и переводы между счетами;
-- голосовой ввод с распознаванием нескольких операций и экраном подтверждения;
-- импорт банковских выписок из CSV, PDF и XLSX;
-- бюджеты, финансовые цели и повторяющиеся платежи;
-- учёт долгов и возвратов;
-- защита приложения с помощью PIN-кода и Face ID;
-- виджет, Control Center, Siri Shortcuts и deep links;
-- офлайн-хранение и синхронизация с собственным бэкендом;
-- экспорт данных и прикрепление чеков.
+- accounts, categories, and subcategories
+- expenses, income, and transfers between accounts
+- voice input that can recognize multiple operations and open a confirmation list
+- bank statement import from CSV, PDF, and XLSX
+- budgets, savings goals, and recurring payments
+- debt tracking and repayments
+- app lock with PIN and Face ID
+- widget, Control Center, Siri Shortcuts, and deep links
+- offline storage with sync to a custom backend
+- data export and receipt attachments
 
-## Стек
+## Stack
 
-- Swift и SwiftUI
+- Swift and SwiftUI
 - SwiftData
-- Speech и AVFoundation
-- WidgetKit и App Intents
+- Speech and AVFoundation
+- WidgetKit and App Intents
 - PDFKit
-- REST API с pull/push-синхронизацией
+- REST API with pull/push sync
 
-## Требования
+## Requirements
 
 - iOS 17+
 - Xcode 15+
-- Apple Developer Team для сборки на физическом устройстве
+- Apple Developer Team for device builds
 
-## Запуск
+## Getting started
 
-1. Клонируйте репозиторий.
-2. Откройте `FinTrack.xcodeproj`.
-3. Выберите схему `FinTrack`.
-4. Укажите свою Development Team и уникальный Bundle Identifier.
-5. При необходимости задайте `API_BASE_URL` в настройках схемы или Info.plist.
-6. Соберите и запустите приложение на устройстве или симуляторе.
+1. Clone the repository.
+2. Open `FinTrack.xcodeproj`.
+3. Select the `FinTrack` scheme.
+4. Set your Development Team and a unique Bundle Identifier.
+5. Optionally set `API_BASE_URL` in the scheme or Info.plist.
+6. Build and run on a device or simulator.
 
-Проект также описан в `project.yml` и может быть пересоздан через [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+The project is also described in `project.yml` and can be regenerated with [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
-> Пользовательское название приложения — **monёy**. Внутреннее имя Xcode target/module пока остаётся `FinTrack`, чтобы сохранить совместимость с существующей подписью и App Group.
+> The user-facing app name is **monёy**. The internal Xcode target/module name is still `FinTrack` for signing and App Group compatibility.
 
-## Документация
+## Docs
 
-- [API-контракт](docs/API_CONTRACT.md)
-- [Архитектура синхронизации](docs/SYNC_READINESS.md)
-- [UI-гайд](docs/UI_STYLE.md)
+- [API contract](docs/API_CONTRACT.md)
+- [Sync architecture](docs/SYNC_READINESS.md)
+- [UI guide](docs/UI_STYLE.md)
 
-## Статус
+## Status
 
-Проект развивается как личный pet-проект. API и модель данных могут меняться без обратной совместимости.
+This is a personal pet project. The API and data model may change without backwards compatibility.
+
+---
+
+## На русском
+
+Личный pet-проект финансового трекера для iPhone. Учёт доходов и расходов, бюджеты и быстрый ввод нескольких операций голосом.
+
+**Фичи:** счета и категории, голосовой ввод с подтверждением нескольких операций, импорт выписок, бюджеты/цели/повторы, долги, PIN/Face ID, виджеты и deep links, офлайн + синк, экспорт и чеки.
+
+**Запуск:** открыть `FinTrack.xcodeproj`, схема `FinTrack`, указать свою Development Team и Bundle Identifier.
